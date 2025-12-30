@@ -10,7 +10,6 @@ from pandas.plotting import table
 from io import BytesIO
 
 # --- 1. CONFIG & BRANDING ---
-# Set page to wide mode and collapse sidebar for mobile users
 st.set_page_config(
     page_title="Malaysian Street Vibes", 
     page_icon="🍜", 
@@ -18,16 +17,14 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Set Matplotlib to non-GUI mode (prevents server crashes)
+# Set Matplotlib to non-GUI mode
 plt.switch_backend('Agg')
 
 # CSS Styling
 st.markdown("""
     <style>
-    /* Center images */
     div[data-testid="stImage"] > img { display: block; margin-left: auto; margin-right: auto; }
     
-    /* Metric Cards */
     .metric-card {
         background-color: #FFF8E1;
         border: 2px solid #5D4037;
@@ -37,7 +34,6 @@ st.markdown("""
         box-shadow: 3px 3px 0px #5D4037;
     }
     
-    /* Buttons */
     .stButton>button {
         font-weight: bold;
         border: 2px solid #5D4037 !important;
@@ -73,15 +69,12 @@ except Exception as e:
 # --- 3. HELPER FUNCTIONS ---
 
 def get_weekly_filename(date_obj=None):
-    """Generates filename like orders_2025_week05.json"""
-    if date_obj is None: 
-        date_obj = datetime.now()
+    if date_obj is None: date_obj = datetime.now()
     year = date_obj.strftime("%Y")
     week = date_obj.strftime("%U")
     return f"orders_{year}_week{week}.json"
 
 def load_data(filename, default):
-    """Downloads JSON from Dropbox"""
     try:
         _, res = dbx.files_download(f"/{filename}")
         return json.loads(res.content)
@@ -89,14 +82,11 @@ def load_data(filename, default):
         return default
 
 def save_data(filename, data):
-    """Uploads JSON to Dropbox"""
     json_bytes = json.dumps(data, indent=4).encode('utf-8')
     dbx.files_upload(json_bytes, f"/{filename}", mode=dropbox.files.WriteMode("overwrite"))
 
 def generate_html_report(df, date_str):
-    """Creates a branded HTML file for printing"""
-    total_revenue = df['Total'].str.replace('$', '').astype(float).sum()
-    
+    total_revenue = df['Total'].str.replace('OMR ', '').astype(float).sum()
     html = f"""
     <html>
     <head>
@@ -118,14 +108,13 @@ def generate_html_report(df, date_str):
             <div class="info">Sales Report: Week of {date_str}</div>
         </div>
         {df.to_html(index=False, border=0)}
-        <div class="footer">Total Revenue: ${total_revenue:.2f}</div>
+        <div class="footer">Total Revenue: OMR {total_revenue:.3f}</div>
     </body>
     </html>
     """
     return html
 
 def generate_png_image(df):
-    """Converts DataFrame to a PNG image"""
     rows = len(df)
     h = max(3, rows * 0.5 + 2) 
     fig, ax = plt.subplots(figsize=(10, h)) 
@@ -134,40 +123,34 @@ def generate_png_image(df):
     tbl.auto_set_font_size(False)
     tbl.set_fontsize(10)
     tbl.scale(1.2, 1.2)
-    
     for (row, col), cell in tbl.get_celld().items():
         if row == 0:
             cell.set_text_props(weight='bold', color='white')
             cell.set_facecolor('#5D4037')
         else:
             cell.set_facecolor('#FFF8E1')
-    
     plt.title("Malaysian Street Vibes - Order Report", fontsize=14, weight='bold', color='#5D4037', pad=20)
-    
     buf = BytesIO()
     plt.savefig(buf, format="png", bbox_inches='tight', dpi=150)
-    plt.close(fig) # Close to free memory
+    plt.close(fig)
     return buf
 
 # --- 4. NAVIGATION & SIDEBAR ---
-
-# Correctly check for sidebar image
 if os.path.exists("street_vibes.png"):
     st.sidebar.image("street_vibes.png", width=100)
 
-st.sidebar.title("Navigation")
-view_mode = st.sidebar.radio("Go to:", ["📝 Take Orders", "📊 Towkay Dashboard"], label_visibility="collapsed")
+st.sidebar.title("Main Menu")
+view_mode = st.sidebar.radio("Go to:", ["📝 Take Orders", "📊 Towkay Dashboard", "📖 User Guide"], label_visibility="collapsed")
 
 # ==========================================
 # VIEW 1: TAKE ORDERS
 # ==========================================
 if view_mode == "📝 Take Orders":
     st.subheader("New Order Entry")
-    
     current_filename = get_weekly_filename()
     st.caption(f"📂 Saving to: {current_filename}")
     
-    menu = load_data("menu.json", {"Nasi Lemak": 5.0})
+    menu = load_data("menu.json", {"Nasi Lemak": 1.500})
     if 'cart' not in st.session_state: st.session_state.cart = []
 
     col1, col2 = st.columns([1.2, 1])
@@ -187,10 +170,10 @@ if view_mode == "📝 Take Orders":
         if st.session_state.cart:
             total = 0
             for i in st.session_state.cart:
-                st.text(f"{i['qty']}x {i['item']} (${i['price']:.2f})")
+                st.text(f"{i['qty']}x {i['item']} (OMR {i['price']:.3f})")
                 total += i['price']
             st.divider()
-            st.markdown(f"#### Total: ${total:.2f}")
+            st.markdown(f"#### Total: OMR {total:.3f}")
             
             c_name = st.text_input("Customer Name", placeholder="e.g., Uncle Lim")
             
@@ -201,7 +184,6 @@ if view_mode == "📝 Take Orders":
                     with st.spinner("Saving..."):
                         orders = load_data(current_filename, [])
                         item_summary = ", ".join([f"{x['qty']}x {x['item']}" for x in st.session_state.cart])
-                        
                         new_record = {
                             "id": int(time.time()),
                             "date": datetime.now().strftime("%Y-%m-%d"),
@@ -227,7 +209,6 @@ if view_mode == "📝 Take Orders":
 # ==========================================
 elif view_mode == "📊 Towkay Dashboard":
     st.title("Towkay Dashboard")
-    
     selected_date = st.date_input("Select Week to View:", value=datetime.now())
     target_filename = get_weekly_filename(datetime.combine(selected_date, datetime.min.time()))
     st.caption(f"Viewing File: `{target_filename}`")
@@ -236,16 +217,14 @@ elif view_mode == "📊 Towkay Dashboard":
 
     tab1, tab2, tab3 = st.tabs(["📈 Sales", "💾 Downloads", "🛠️ Menu"])
 
-    # --- TAB 1: METRICS ---
     with tab1:
         if orders:
             total_rev = sum(o['total'] for o in orders)
             c1, c2 = st.columns(2)
-            c1.markdown(f"<div class='metric-card'><h3>💰 Revenue</h3><h1>${total_rev:.2f}</h1></div>", unsafe_allow_html=True)
+            c1.markdown(f"<div class='metric-card'><h3>💰 Revenue</h3><h1>OMR {total_rev:.3f}</h1></div>", unsafe_allow_html=True)
             c2.markdown(f"<div class='metric-card'><h3>🧾 Orders</h3><h1>{len(orders)}</h1></div>", unsafe_allow_html=True)
             st.divider()
 
-            # Kitchen Totals
             st.subheader("👨‍🍳 Kitchen Summary")
             item_totals = {}
             for order in orders:
@@ -253,55 +232,75 @@ elif view_mode == "📊 Towkay Dashboard":
                     name = item_obj['item']
                     qty = item_obj['qty']
                     item_totals[name] = item_totals.get(name, 0) + qty
-            
             if item_totals:
                 totals_df = pd.DataFrame(list(item_totals.items()), columns=["Item", "To Cook"]).sort_values("To Cook", ascending=False)
                 st.dataframe(totals_df, use_container_width=True, hide_index=True)
 
-            # Raw Table
             st.subheader("📋 Transaction List")
             display_data = []
             for o in reversed(orders):
                 display_data.append({
                     "Date": o['date'], "Time": o['time'], "Customer": o['customer'],
-                    "Items": o.get('item_summary', ''), "Total": f"${o['total']:.2f}"
+                    "Items": o.get('item_summary', ''), "Total": f"OMR {o['total']:.3f}"
                 })
             st.dataframe(pd.DataFrame(display_data), use_container_width=True, hide_index=True)
         else:
             st.info("No orders found for this week.")
 
-    # --- TAB 2: DOWNLOADS ---
     with tab2:
         st.header("Export Options")
         if orders:
-            # Prepare clean DF
             export_data = []
             for o in reversed(orders):
                 export_data.append({
                     "Date": o['date'], "Time": o['time'], "Customer": o['customer'],
-                    "Items": o.get('item_summary', ''), "Total": f"${o['total']:.2f}"
+                    "Items": o.get('item_summary', ''), "Total": f"OMR {o['total']:.3f}"
                 })
             df_export = pd.DataFrame(export_data)
 
             col1, col2, col3 = st.columns(3)
-            
             with col1:
                 st.download_button("⬇️ JSON (Backup)", data=json.dumps(orders, indent=4), file_name=target_filename, mime="application/json")
-            
             with col2:
                 html_file = generate_html_report(df_export, selected_date.strftime('%Y-%m-%d'))
                 st.download_button("📄 HTML (Print)", data=html_file, file_name=f"report_{selected_date.strftime('%Y_wk%U')}.html", mime="text/html")
-            
             with col3:
                 png_buffer = generate_png_image(df_export)
                 st.download_button("🖼️ PNG (Image)", data=png_buffer, file_name=f"sales_{selected_date.strftime('%Y_wk%U')}.png", mime="image/png")
         else:
             st.warning("No data to download.")
 
-    # --- TAB 3: MENU ---
     with tab3:
-        current = load_data("menu.json", {"Nasi Lemak": 5.0})
-        edited = st.data_editor(pd.DataFrame(list(current.items()), columns=["Item", "Price"]), num_rows="dynamic", use_container_width=True)
+        current = load_data("menu.json", {"Nasi Lemak": 1.500})
+        edited = st.data_editor(pd.DataFrame(list(current.items()), columns=["Item", "Price (OMR)"]), num_rows="dynamic", use_container_width=True)
         if st.button("💾 Save Menu"):
-            save_data("menu.json", dict(zip(edited["Item"], edited["Price"])))
+            save_data("menu.json", dict(zip(edited["Item"], edited["Price (OMR)"])))
             st.success("Menu Updated!")
+
+# ==========================================
+# VIEW 3: USER GUIDE (MALAY)
+# ==========================================
+elif view_mode == "📖 User Guide":
+    st.title("📖 Panduan Pengguna")
+    st.markdown("""
+    ### 1. Logo & Jenama
+    Menu sisi (kiri) adalah pusat kawalan utama. Klik **"Main Menu"** untuk tukar fungsi.
+    
+    ### 2. Fungsi Utama
+    
+    #### **A. 📝 Take Orders (Ambil Pesanan)**
+    1.  **Pilih Menu:** Pilih makanan dari senarai.
+    2.  **Kuantiti:** Masukkan berapa bungkus.
+    3.  **Add:** Tekan butang tambah.
+    4.  **Confirm:** Masukkan nama pelanggan dan tekan butang hijau.
+    
+    #### **B. 📊 Towkay Dashboard (Admin)**
+    * **📅 Pilih Tarikh:** Lihat jualan hari ini atau minggu lepas.
+    * **Tab 1: Sales:** Lihat jumlah duit (OMR) dan senarai masakan dapur.
+    * **Tab 2: Downloads:** Muat turun laporan PDF/HTML atau Gambar (PNG).
+    * **Tab 3: Menu:** Tukar harga atau tambah makanan baru.
+    
+    ### 💡 Tip
+    * **Mata Wang:** Semua harga kini dalam **OMR (Rial Oman)**.
+    * **Mobile:** Di telefon, tekan butang `>` di bucu kiri atas untuk buka menu ini.
+    """)
