@@ -156,6 +156,16 @@ if app_mode == "🍽️ Customer Menu":
 
     # --- STEP 1: MENU SELECTION ---
     if st.session_state.order_step == 'menu':
+        
+        # --- NEW: CUSTOMER GUIDE ---
+        with st.expander("ℹ️ How to Order / Cara Memesan"):
+            st.markdown("""
+            1. **Select Food:** Click the 'Add' button next to the items you want.
+            2. **Check Cart:** Look at the 'Your Basket' section.
+            3. **Review:** Click 'Review Order', enter your name, and choose Dine-in/Takeaway.
+            4. **Submit:** Click 'Confirm & Send'.
+            """)
+        
         st.markdown("### 👋 Welcome! Please select your items.")
         
         menu = load_data("menu.json", {"Nasi Lemak": 1.500})
@@ -171,7 +181,8 @@ if app_mode == "🍽️ Customer Menu":
                 with c2:
                     qty = st.number_input("Qty", min_value=1, value=1, key=f"qty_{item_name}", label_visibility="collapsed")
                 with c3:
-                    if st.button("Add", key=f"btn_{item_name}", use_container_width=True):
+                    # FIX 1: use_container_width -> width='stretch'
+                    if st.button("Add", key=f"btn_{item_name}", width="stretch"):
                         st.session_state.cart.append({"item": item_name, "qty": qty, "price": item_price * qty})
                         st.toast(f"✅ Added {qty}x {item_name}")
                 st.divider()
@@ -186,11 +197,11 @@ if app_mode == "🍽️ Customer Menu":
                 st.divider()
                 st.markdown(f"### Total: OMR {total:.3f}")
                 
-                # Inputs
                 c_name = st.text_input("Your Name / Nama", placeholder="Enter Name")
                 t_no = st.selectbox("Order Type", ["Takeaway", "Dine-in"])
                 
-                if st.button("📝 REVIEW ORDER", type="primary", use_container_width=True):
+                # FIX 2: use_container_width -> width='stretch'
+                if st.button("📝 REVIEW ORDER", type="primary", width="stretch"):
                     if not c_name:
                         st.error("Name is required!")
                     else:
@@ -218,11 +229,13 @@ if app_mode == "🍽️ Customer Menu":
         
         c1, c2 = st.columns(2)
         with c1:
-            if st.button("⬅️ Back / Edit", use_container_width=True):
+            # FIX 3: use_container_width -> width='stretch'
+            if st.button("⬅️ Back / Edit", width="stretch"):
                 st.session_state.order_step = 'menu'
                 st.rerun()
         with c2:
-            if st.button("✅ CONFIRM & SEND", type="primary", use_container_width=True):
+            # FIX 4: use_container_width -> width='stretch'
+            if st.button("✅ CONFIRM & SEND", type="primary", width="stretch"):
                 with st.spinner("Sending to Kitchen..."):
                     current_filename = get_weekly_filename()
                     orders = load_data(current_filename, [])
@@ -243,7 +256,7 @@ if app_mode == "🍽️ Customer Menu":
                     st.session_state.order_step = 'success'
                     st.rerun()
 
-    # --- STEP 3: SUCCESS (Custom Message) ---
+    # --- STEP 3: SUCCESS ---
     elif st.session_state.order_step == 'success':
         st.balloons()
         st.title("✅ Order Received!")
@@ -254,7 +267,8 @@ if app_mode == "🍽️ Customer Menu":
         
         st.write("")
         st.write("")
-        if st.button("🏠 Start New Order", type="primary", use_container_width=True):
+        # FIX 5: use_container_width -> width='stretch'
+        if st.button("🏠 Start New Order", type="primary", width="stretch"):
             st.session_state.cart = []
             st.session_state.order_step = 'menu'
             st.session_state.customer_meta = {}
