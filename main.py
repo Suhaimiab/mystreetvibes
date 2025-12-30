@@ -4,16 +4,30 @@ import json
 import pandas as pd
 from datetime import datetime
 import time
+import os
 import matplotlib.pyplot as plt
 from pandas.plotting import table
+from io import BytesIO
 
 # --- 1. CONFIG & BRANDING ---
-st.set_page_config(page_title="Malaysian Street Vibes", page_icon="🍜", layout="wide")
+# Set page to wide mode and collapse sidebar for mobile users
+st.set_page_config(
+    page_title="Malaysian Street Vibes", 
+    page_icon="🍜", 
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
-# Styling
+# Set Matplotlib to non-GUI mode (prevents server crashes)
+plt.switch_backend('Agg')
+
+# CSS Styling
 st.markdown("""
     <style>
+    /* Center images */
     div[data-testid="stImage"] > img { display: block; margin-left: auto; margin-right: auto; }
+    
+    /* Metric Cards */
     .metric-card {
         background-color: #FFF8E1;
         border: 2px solid #5D4037;
@@ -22,6 +36,8 @@ st.markdown("""
         text-align: center;
         box-shadow: 3px 3px 0px #5D4037;
     }
+    
+    /* Buttons */
     .stButton>button {
         font-weight: bold;
         border: 2px solid #5D4037 !important;
@@ -35,31 +51,37 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Header
-try:
+# --- HEADER LOGO ---
+if os.path.exists("street_vibes.png"):
     st.image("street_vibes.png", width=250)
-except:
+else:
     st.markdown("<h1 style='text-align: center;'>🍜 Malaysian Street Vibes</h1>", unsafe_allow_html=True)
+
 st.write("---")
 
-# --- 2. DROPBOX & FILE LOGIC ---
+# --- 2. DROPBOX CONNECTION ---
 try:
     dbx = dropbox.Dropbox(
         app_key=st.secrets["dropbox"]["app_key"],
         app_secret=st.secrets["dropbox"]["app_secret"],
         oauth2_refresh_token=st.secrets["dropbox"]["refresh_token"]
     )
-except:
-    st.error("⚠️ Connection Error. Check Secrets.")
+except Exception as e:
+    st.error(f"⚠️ Connection Error: {e}")
     st.stop()
 
+# --- 3. HELPER FUNCTIONS ---
+
 def get_weekly_filename(date_obj=None):
-    if date_obj is None: date_obj = datetime.now()
+    """Generates filename like orders_2025_week05.json"""
+    if date_obj is None: 
+        date_obj = datetime.now()
     year = date_obj.strftime("%Y")
     week = date_obj.strftime("%U")
     return f"orders_{year}_week{week}.json"
 
 def load_data(filename, default):
+    """Downloads JSON from Dropbox"""
     try:
         _, res = dbx.files_download(f"/{filename}")
         return json.loads(res.content)
@@ -67,13 +89,12 @@ def load_data(filename, default):
         return default
 
 def save_data(filename, data):
+    """Uploads JSON to Dropbox"""
     json_bytes = json.dumps(data, indent=4).encode('utf-8')
     dbx.files_upload(json_bytes, f"/{filename}", mode=dropbox.files.WriteMode("overwrite"))
 
-# --- NEW EXPORT FUNCTIONS ---
-
 def generate_html_report(df, date_str):
-    """Creates a branded HTML file string"""
+    """Creates a branded HTML file for printing"""
     total_revenue = df['Total'].str.replace('$', '').astype(float).sum()
     
     html = f"""
@@ -94,72 +115,68 @@ def generate_html_report(df, date_str):
     <body>
         <div class="header">
             <h1>🍜 Malaysian Street Vibes</h1>
-            <div class="info">Sales Report for Week of {date_str}</div>
+            <div class="info">Sales Report: Week of {date_str}</div>
         </div>
-        
         {df.to_html(index=False, border=0)}
-        
-        <div class="footer">
-            Total Revenue: ${total_revenue:.2f}
-        </div>
+        <div class="footer">Total Revenue: ${total_revenue:.2f}</div>
     </body>
     </html>
     """
     return html
 
 def generate_png_image(df):
-    """Converts DataFrame to a Matplotlib Figure for PNG download"""
-    # Create a figure. Height depends on number of rows (dynamic)
+    """Converts DataFrame to a PNG image"""
     rows = len(df)
     h = max(3, rows * 0.5 + 2) 
     fig, ax = plt.subplots(figsize=(10, h)) 
-    
-    # Hide axes
     ax.axis('off')
-    
-    # Create table
     tbl = table(ax, df, loc='center', cellLoc='left')
-    
-    # Style the table
     tbl.auto_set_font_size(False)
     tbl.set_fontsize(10)
     tbl.scale(1.2, 1.2)
     
-    # Header Styling (Row 0)
     for (row, col), cell in tbl.get_celld().items():
         if row == 0:
             cell.set_text_props(weight='bold', color='white')
-            cell.set_facecolor('#5D4037') # Brown header
+            cell.set_facecolor('#5D4037')
         else:
-            cell.set_facecolor('#FFF8E1') # Light yellow rows
+            cell.set_facecolor('#FFF8E1')
     
     plt.title("Malaysian Street Vibes - Order Report", fontsize=14, weight='bold', color='#5D4037', pad=20)
     
-    # Save to a temporary filename logic handled by Streamlit
-    from io import BytesIO
     buf = BytesIO()
     plt.savefig(buf, format="png", bbox_inches='tight', dpi=150)
+    plt.close(fig) # Close to free memory
     return buf
 
-# --- 3. NAVIGATION ---
-st.sidebar.image("street_vibes.png", width=100) if "street_vibes.png" else None
-view_mode = st.sidebar.radio("Navigation", ["📝 Take Orders", "📊 Towkay Dashboard"])
+# --- 4. NAVIGATION & SIDEBAR ---
+
+# Correctly check for sidebar image
+if os.path.exists("street_vibes.png"):
+    st.sidebar.image("street_vibes.png", width=100)
+
+st.sidebar.title("Navigation")
+view_mode = st.sidebar.radio("Go to:", ["📝 Take Orders", "📊 Towkay Dashboard"], label_visibility="collapsed")
 
 # ==========================================
-# VIEW 1: TAKE ORDERS (Logic Unchanged)
+# VIEW 1: TAKE ORDERS
 # ==========================================
 if view_mode == "📝 Take Orders":
     st.subheader("New Order Entry")
+    
     current_filename = get_weekly_filename()
     st.caption(f"📂 Saving to: {current_filename}")
+    
     menu = load_data("menu.json", {"Nasi Lemak": 5.0})
     if 'cart' not in st.session_state: st.session_state.cart = []
 
     col1, col2 = st.columns([1.2, 1])
+    
     with col1:
         st.info("👇 **Select Items**")
         item = st.selectbox("Menu Item", list(menu.keys()), label_visibility="collapsed")
         qty = st.number_input("Quantity", min_value=1, value=1, label_visibility="collapsed")
+        
         if st.button("➕ Add", use_container_width=True):
             price = menu[item]
             st.session_state.cart.append({"item": item, "qty": qty, "price": price * qty})
@@ -174,13 +191,17 @@ if view_mode == "📝 Take Orders":
                 total += i['price']
             st.divider()
             st.markdown(f"#### Total: ${total:.2f}")
+            
             c_name = st.text_input("Customer Name", placeholder="e.g., Uncle Lim")
+            
             if st.button("✅ CONFIRM", type="primary", use_container_width=True):
-                if not c_name: st.error("Name Required!")
+                if not c_name:
+                    st.error("Name Required!")
                 else:
                     with st.spinner("Saving..."):
                         orders = load_data(current_filename, [])
                         item_summary = ", ".join([f"{x['qty']}x {x['item']}" for x in st.session_state.cart])
+                        
                         new_record = {
                             "id": int(time.time()),
                             "date": datetime.now().strftime("%Y-%m-%d"),
@@ -202,18 +223,20 @@ if view_mode == "📝 Take Orders":
                 st.rerun()
 
 # ==========================================
-# VIEW 2: DASHBOARD (Updated with Downloads)
+# VIEW 2: TOWKAY DASHBOARD
 # ==========================================
 elif view_mode == "📊 Towkay Dashboard":
     st.title("Towkay Dashboard")
-    selected_date = st.date_input("Select Week:", value=datetime.now())
+    
+    selected_date = st.date_input("Select Week to View:", value=datetime.now())
     target_filename = get_weekly_filename(datetime.combine(selected_date, datetime.min.time()))
-    st.caption(f"Viewing: `{target_filename}`")
+    st.caption(f"Viewing File: `{target_filename}`")
+    
     orders = load_data(target_filename, [])
 
     tab1, tab2, tab3 = st.tabs(["📈 Sales", "💾 Downloads", "🛠️ Menu"])
 
-    # TAB 1: SALES
+    # --- TAB 1: METRICS ---
     with tab1:
         if orders:
             total_rev = sum(o['total'] for o in orders)
@@ -221,19 +244,22 @@ elif view_mode == "📊 Towkay Dashboard":
             c1.markdown(f"<div class='metric-card'><h3>💰 Revenue</h3><h1>${total_rev:.2f}</h1></div>", unsafe_allow_html=True)
             c2.markdown(f"<div class='metric-card'><h3>🧾 Orders</h3><h1>{len(orders)}</h1></div>", unsafe_allow_html=True)
             st.divider()
-            
-            # Kitchen Sums
+
+            # Kitchen Totals
+            st.subheader("👨‍🍳 Kitchen Summary")
             item_totals = {}
             for order in orders:
                 for item_obj in order['items']:
                     name = item_obj['item']
                     qty = item_obj['qty']
                     item_totals[name] = item_totals.get(name, 0) + qty
+            
             if item_totals:
                 totals_df = pd.DataFrame(list(item_totals.items()), columns=["Item", "To Cook"]).sort_values("To Cook", ascending=False)
                 st.dataframe(totals_df, use_container_width=True, hide_index=True)
 
-            # Table View
+            # Raw Table
+            st.subheader("📋 Transaction List")
             display_data = []
             for o in reversed(orders):
                 display_data.append({
@@ -244,11 +270,11 @@ elif view_mode == "📊 Towkay Dashboard":
         else:
             st.info("No orders found for this week.")
 
-    # TAB 2: DOWNLOADS (HTML & PNG)
+    # --- TAB 2: DOWNLOADS ---
     with tab2:
-        st.header("Export Reports")
+        st.header("Export Options")
         if orders:
-            # Prepare clean DataFrame for export
+            # Prepare clean DF
             export_data = []
             for o in reversed(orders):
                 export_data.append({
@@ -259,41 +285,20 @@ elif view_mode == "📊 Towkay Dashboard":
 
             col1, col2, col3 = st.columns(3)
             
-            # 1. JSON (Raw Backup)
             with col1:
-                st.download_button(
-                    "⬇️ JSON (Backup)", 
-                    data=json.dumps(orders, indent=4), 
-                    file_name=target_filename,
-                    mime="application/json"
-                )
-
-            # 2. HTML (Pretty Report)
+                st.download_button("⬇️ JSON (Backup)", data=json.dumps(orders, indent=4), file_name=target_filename, mime="application/json")
+            
             with col2:
                 html_file = generate_html_report(df_export, selected_date.strftime('%Y-%m-%d'))
-                st.download_button(
-                    "📄 HTML (Printable)", 
-                    data=html_file, 
-                    file_name=f"report_{selected_date.strftime('%Y_wk%U')}.html",
-                    mime="text/html"
-                )
-
-            # 3. PNG (Image Share)
+                st.download_button("📄 HTML (Print)", data=html_file, file_name=f"report_{selected_date.strftime('%Y_wk%U')}.html", mime="text/html")
+            
             with col3:
                 png_buffer = generate_png_image(df_export)
-                st.download_button(
-                    "🖼️ PNG (Image)",
-                    data=png_buffer,
-                    file_name=f"sales_{selected_date.strftime('%Y_wk%U')}.png",
-                    mime="image/png"
-                )
-                
-            st.success("Tip: Open HTML file in browser and press Ctrl+P to save as PDF!")
-            
+                st.download_button("🖼️ PNG (Image)", data=png_buffer, file_name=f"sales_{selected_date.strftime('%Y_wk%U')}.png", mime="image/png")
         else:
-            st.warning("No data to download yet.")
+            st.warning("No data to download.")
 
-    # TAB 3: MENU
+    # --- TAB 3: MENU ---
     with tab3:
         current = load_data("menu.json", {"Nasi Lemak": 5.0})
         edited = st.data_editor(pd.DataFrame(list(current.items()), columns=["Item", "Price"]), num_rows="dynamic", use_container_width=True)
