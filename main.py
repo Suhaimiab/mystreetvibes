@@ -40,6 +40,7 @@ st.markdown("""
         transition: all 0.2s ease-in-out;
     }
     
+    /* Primary (Red/Brown) */
     .stButton>button[kind="primary"] {
         background-color: #5D4037 !important;
         color: white !important;
@@ -49,6 +50,7 @@ st.markdown("""
         background-color: #3E2723 !important;
     }
 
+    /* Secondary (Light) */
     .stButton>button[kind="secondary"] {
         background-color: #EFEBE9 !important;
         color: #5D4037 !important;
@@ -258,7 +260,11 @@ if app_mode == "🍽️ Customer Menu":
         st.title("✅ Order Received!")
         st.markdown("### Thank you for your order.")
         st.markdown("See you at **Orange Pearl Tea** on **Friday from 1.30pm onwards**!!")
-        st.info("Sent to kitchen.")
+        
+        # --- CHANGED HERE ---
+        st.info("Sent to Food Processing Team!")
+        # --------------------
+        
         st.write(""); st.write("")
         if st.button("🏠 New Order", type="primary", width="stretch"):
             st.session_state.cart = []; st.session_state.order_step = 'menu'; st.rerun()
@@ -305,7 +311,7 @@ elif app_mode == "🔐 Owner Login":
                 # Customer Table
                 st.subheader("👥 By Customer")
                 df_cust = pd.DataFrame([{"Customer": o['customer'], "Time": o['time'], "Items": o['item_summary'], "Total": f"{o['total']:.3f}"} for o in orders])
-                st.dataframe(df_cust.sort_values("Customer"), use_container_width=True, hide_index=True)
+                st.dataframe(df_cust.sort_values("Customer"), width='stretch', hide_index=True)
                 
                 # Dish Performance
                 st.subheader("🔥 By Dish")
@@ -317,7 +323,7 @@ elif app_mode == "🔐 Owner Login":
                         stats[i['item']]['rev'] += i['price']
                 if stats:
                     df_stats = pd.DataFrame([{"Item":k,"Qty":v['qty'],"Rev":f"{v['rev']:.3f}"} for k,v in stats.items()])
-                    st.dataframe(df_stats.sort_values("Qty", ascending=False), use_container_width=True, hide_index=True)
+                    st.dataframe(df_stats.sort_values("Qty", ascending=False), width='stretch', hide_index=True)
                 
                 # Exports
                 st.divider(); st.subheader("Export")
@@ -329,7 +335,7 @@ elif app_mode == "🔐 Owner Login":
 
         with t3:
             curr = load_data("menu.json", {"Nasi Lemak": 1.500})
-            ed = st.data_editor(pd.DataFrame(list(curr.items()), columns=["Item", "Price (OMR)"]), num_rows="dynamic", use_container_width=True)
+            ed = st.data_editor(pd.DataFrame(list(curr.items()), columns=["Item", "Price (OMR)"]), num_rows="dynamic", width='stretch')
             if st.button("💾 Save Menu"):
                 save_data("menu.json", dict(zip(ed["Item"], ed["Price (OMR)"])))
                 st.success("Updated!")
