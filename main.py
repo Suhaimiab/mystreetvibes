@@ -33,22 +33,41 @@ st.markdown("""
         box-shadow: 3px 3px 0px #5D4037;
     }
     
-    /* BIG BUTTONS FOR CUSTOMERS */
+    /* --- BUTTON STYLING --- */
     .stButton>button {
         font-weight: bold;
-        border: 2px solid #5D4037 !important;
-        color: #5D4037 !important;
         height: 3em;
+        transition: all 0.2s ease-in-out; /* Smooth transition for color changes */
     }
+    
+    /* Primary Buttons (Review Order, Confirm, etc) - Dark Brown */
     .stButton>button[kind="primary"] {
         background-color: #5D4037 !important;
         color: white !important;
         border: none !important;
     }
+    .stButton>button[kind="primary"]:hover {
+        background-color: #795548 !important; /* Slightly lighter on hover */
+    }
+
+    /* Secondary Buttons ("Add" buttons) - Light Tan */
+    /* This makes them distinct from the white quantity box */
     .stButton>button[kind="secondary"] {
-        background-color: #f0f2f6 !important;
-        color: #31333F !important;
-        border: none !important;
+        background-color: #EFEBE9 !important; /* Light tan background */
+        color: #5D4037 !important; /* Brown text */
+        border: 1px solid #D7CCC8 !important;
+    }
+    
+    /* Hover effect for "Add" button */
+    .stButton>button[kind="secondary"]:hover {
+         background-color: #D7CCC8 !important;
+         border-color: #A1887F !important;
+    }
+
+    /* Active/Pressed effect for "Add" button - Gives immediate visual feedback */
+    .stButton>button[kind="secondary"]:active {
+        background-color: #A1887F !important; /* Darker brown when pressed */
+        color: white !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -157,7 +176,6 @@ if app_mode == "🍽️ Customer Menu":
     # --- STEP 1: MENU SELECTION ---
     if st.session_state.order_step == 'menu':
         
-        # --- NEW: CUSTOMER GUIDE ---
         with st.expander("ℹ️ How to Order / Cara Memesan"):
             st.markdown("""
             1. **Select Food:** Click the 'Add' button next to the items you want.
@@ -181,9 +199,10 @@ if app_mode == "🍽️ Customer Menu":
                 with c2:
                     qty = st.number_input("Qty", min_value=1, value=1, key=f"qty_{item_name}", label_visibility="collapsed")
                 with c3:
-                    # FIX 1: use_container_width -> width='stretch'
+                    # Note: This uses the "secondary" style defined in CSS above
                     if st.button("Add", key=f"btn_{item_name}", width="stretch"):
                         st.session_state.cart.append({"item": item_name, "qty": qty, "price": item_price * qty})
+                        # This toast provides the final confirmation feedback
                         st.toast(f"✅ Added {qty}x {item_name}")
                 st.divider()
 
@@ -200,7 +219,7 @@ if app_mode == "🍽️ Customer Menu":
                 c_name = st.text_input("Your Name / Nama", placeholder="Enter Name")
                 t_no = st.selectbox("Order Type", ["Takeaway", "Dine-in"])
                 
-                # FIX 2: use_container_width -> width='stretch'
+                # Note: This uses the "primary" style defined in CSS
                 if st.button("📝 REVIEW ORDER", type="primary", width="stretch"):
                     if not c_name:
                         st.error("Name is required!")
@@ -229,12 +248,10 @@ if app_mode == "🍽️ Customer Menu":
         
         c1, c2 = st.columns(2)
         with c1:
-            # FIX 3: use_container_width -> width='stretch'
             if st.button("⬅️ Back / Edit", width="stretch"):
                 st.session_state.order_step = 'menu'
                 st.rerun()
         with c2:
-            # FIX 4: use_container_width -> width='stretch'
             if st.button("✅ CONFIRM & SEND", type="primary", width="stretch"):
                 with st.spinner("Sending to Kitchen..."):
                     current_filename = get_weekly_filename()
@@ -267,7 +284,6 @@ if app_mode == "🍽️ Customer Menu":
         
         st.write("")
         st.write("")
-        # FIX 5: use_container_width -> width='stretch'
         if st.button("🏠 Start New Order", type="primary", width="stretch"):
             st.session_state.cart = []
             st.session_state.order_step = 'menu'
