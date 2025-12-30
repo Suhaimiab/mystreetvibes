@@ -41,7 +41,7 @@ with st.sidebar:
     edited_menu = st.data_editor(
         st.session_state.menu_data,
         num_rows="dynamic",
-        use_container_width=True,
+        width='stretch',
         column_config={
             "Price": st.column_config.NumberColumn(format="%.2f OMR"),
             "Category": st.column_config.SelectboxColumn(options=["Main", "Combo", "Drink", "Side"])
@@ -60,7 +60,7 @@ col1, col2 = st.columns(2)
 with col1:
     st.subheader("📥 Paste WhatsApp Message")
     msg = st.text_area("Customer Text:", height=150)
-    run = st.button("Process Order", type="primary", use_container_width=True)
+    run = st.button("Process Order", type="primary", width='stretch')
 
 with col2:
     st.subheader("🧑‍🍳 Kitchen Ticket")
@@ -93,7 +93,7 @@ with col2:
             data = json.loads(response.text)
             
             st.success(f"Total: {data['total']} OMR")
-            st.dataframe(pd.DataFrame(data['items']), use_container_width=True)
+            st.dataframe(pd.DataFrame(data['items']), width='stretch')
             
         except Exception as e:
             st.error(f"Error: {e}")
