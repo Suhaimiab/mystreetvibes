@@ -149,9 +149,9 @@ app_mode = st.sidebar.radio("Select Mode:", ["🍽️ Customer Menu", "🔐 Owne
 # ==========================================
 if app_mode == "🍽️ Customer Menu":
     
-    # Initialize Session States for Customer Flow
+    # Initialize Session States
     if 'cart' not in st.session_state: st.session_state.cart = []
-    if 'order_step' not in st.session_state: st.session_state.order_step = 'menu' # steps: menu, review, success
+    if 'order_step' not in st.session_state: st.session_state.order_step = 'menu'
     if 'customer_meta' not in st.session_state: st.session_state.customer_meta = {}
 
     # --- STEP 1: MENU SELECTION ---
@@ -188,13 +188,12 @@ if app_mode == "🍽️ Customer Menu":
                 
                 # Inputs
                 c_name = st.text_input("Your Name / Nama", placeholder="Enter Name")
-                t_no = st.selectbox("Table / Meja", ["Takeaway", "Table 1", "Table 2", "Table 3", "Table 4", "Table 5"])
+                t_no = st.selectbox("Order Type", ["Takeaway", "Dine-in"])
                 
                 if st.button("📝 REVIEW ORDER", type="primary", use_container_width=True):
                     if not c_name:
                         st.error("Name is required!")
                     else:
-                        # Save temp details and move to review step
                         st.session_state.customer_meta = {"name": c_name, "table": t_no, "total": total}
                         st.session_state.order_step = 'review'
                         st.rerun()
@@ -205,14 +204,13 @@ if app_mode == "🍽️ Customer Menu":
             else:
                 st.info("Basket is empty.")
 
-    # --- STEP 2: REVIEW ORDER (Confirmation) ---
+    # --- STEP 2: REVIEW ORDER ---
     elif st.session_state.order_step == 'review':
         st.markdown("### 🧐 Please Confirm Your Order")
         
         meta = st.session_state.customer_meta
         st.success(f"**Customer:** {meta['name']} | **Type:** {meta['table']}")
         
-        # Display Receipt Style Table
         review_data = [{"Qty": i['qty'], "Item": i['item'], "Price": f"{i['price']:.3f}"} for i in st.session_state.cart]
         st.table(pd.DataFrame(review_data))
         
@@ -245,14 +243,17 @@ if app_mode == "🍽️ Customer Menu":
                     st.session_state.order_step = 'success'
                     st.rerun()
 
-    # --- STEP 3: SUCCESS (Final View) ---
+    # --- STEP 3: SUCCESS (Custom Message) ---
     elif st.session_state.order_step == 'success':
         st.balloons()
         st.title("✅ Order Received!")
-        st.markdown("Please wait, our chef is preparing your food.")
-        st.info("Your Order ID has been sent to the counter.")
+        st.write("---")
+        st.markdown("### Thank you for your order.")
+        st.markdown("See you at **Orange Pearl Tea** on **Friday from 1.30pm onwards**!!")
+        st.info("Your Order ID has been sent to the kitchen.")
         
-        time.sleep(1)
+        st.write("")
+        st.write("")
         if st.button("🏠 Start New Order", type="primary", use_container_width=True):
             st.session_state.cart = []
             st.session_state.order_step = 'menu'
@@ -263,10 +264,19 @@ if app_mode == "🍽️ Customer Menu":
 # MODE 2: OWNER LOGIN
 # ==========================================
 elif app_mode == "🔐 Owner Login":
-    pwd = st.sidebar.text_input("Password", type="password")
+    
+    with st.sidebar.form("login_form"):
+        pwd = st.text_input("Password", type="password")
+        submit_btn = st.form_submit_button("Login")
+    
     correct_pwd = st.secrets["admin"]["password"] if "admin" in st.secrets else "admin123"
     
-    if pwd == correct_pwd:
+    if submit_btn and pwd == correct_pwd:
+        st.session_state['authenticated'] = True
+    elif submit_btn and pwd != correct_pwd:
+        st.sidebar.error("Wrong Password")
+
+    if st.session_state.get('authenticated', False):
         st.title("📊 Towkay Dashboard")
         if st.button("🔄 Refresh Data"): st.rerun()
             
@@ -287,19 +297,16 @@ elif app_mode == "🔐 Owner Login":
             else:
                 st.info("No orders yet.")
 
-        # TAB 2: SALES REPORTS (Updated with Customer Table)
+        # TAB 2: SALES REPORTS
         with tab2:
             if orders:
-                # Metrics
                 total_rev = sum(o['total'] for o in orders)
                 c1, c2 = st.columns(2)
                 c1.markdown(f"<div class='metric-card'><h3>💰 Total Revenue</h3><h1>OMR {total_rev:.3f}</h1></div>", unsafe_allow_html=True)
                 c2.markdown(f"<div class='metric-card'><h3>🧾 Total Orders</h3><h1>{len(orders)}</h1></div>", unsafe_allow_html=True)
                 st.divider()
 
-                # SECTION: Orders by Customer (NEW REQUEST)
                 st.subheader("👥 Orders by Customer Name")
-                # Create a simple table view sorted by Customer Name
                 cust_data = []
                 for o in orders:
                     cust_data.append({
@@ -308,15 +315,11 @@ elif app_mode == "🔐 Owner Login":
                         "Items": o['item_summary'],
                         "Total (OMR)": f"{o['total']:.3f}"
                     })
-                
-                df_cust = pd.DataFrame(cust_data)
-                # Sort alphabetically by Customer
-                df_cust = df_cust.sort_values(by="Customer")
+                df_cust = pd.DataFrame(cust_data).sort_values(by="Customer")
                 st.dataframe(df_cust, use_container_width=True, hide_index=True)
 
                 st.divider()
 
-                # SECTION: Dish Performance
                 st.subheader("🔥 Dish Performance")
                 item_stats = {}
                 for order in orders:
@@ -334,10 +337,36 @@ elif app_mode == "🔐 Owner Login":
 
                 st.divider()
                 st.subheader("Export")
-                export_data = [{"Date": o['date'], "Time": o['time'], "Customer": o['customer'], "Items": o.get('item_summary', ''), "Total": f"OMR {o['total']:.3f}"} for o in reversed(orders)]
+                
+                export_data = []
+                for o in reversed(orders):
+                    export_data.append({
+                        "Date": o['date'], 
+                        "Time": o['time'], 
+                        "Customer": o['customer'], 
+                        "Items": o.get('item_summary', ''), 
+                        "Total": f"OMR {o['total']:.3f}"
+                    })
                 df_export = pd.DataFrame(export_data)
                 
                 c1, c2, c3 = st.columns(3)
-                with c1: st.download_button("⬇️ JSON", json.dumps(orders, indent=4), target_filename, "application/json")
-                with c2: st.download_button("📄 HTML", generate_html_report(df_export, selected_date.strftime('%Y-%m-%d')), f"report.html", "text/html")
-                with c3: st.download_button("
+                with c1: 
+                    st.download_button("⬇️ JSON", json.dumps(orders, indent=4), target_filename, "application/json")
+                with c2: 
+                    st.download_button("📄 HTML", generate_html_report(df_export, selected_date.strftime('%Y-%m-%d')), "report.html", "text/html")
+                with c3: 
+                    st.download_button("🖼️ PNG", generate_png_image(df_export), "report.png", "image/png")
+    
+        # TAB 3: MENU
+        with tab3:
+            current = load_data("menu.json", {"Nasi Lemak": 1.500})
+            edited = st.data_editor(pd.DataFrame(list(current.items()), columns=["Item", "Price (OMR)"]), num_rows="dynamic", use_container_width=True)
+            if st.button("💾 Save Menu"):
+                save_data("menu.json", dict(zip(edited["Item"], edited["Price (OMR)"])))
+                st.success("Menu Updated!")
+
+    else:
+        st.info("Please log in to view data.")
+
+else:
+    st.write("Please select a mode.")
