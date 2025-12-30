@@ -219,24 +219,52 @@ elif view_mode == "📊 Towkay Dashboard":
 
     with tab1:
         if orders:
+            # 1. Total Metrics
             total_rev = sum(o['total'] for o in orders)
             c1, c2 = st.columns(2)
-            c1.markdown(f"<div class='metric-card'><h3>💰 Revenue</h3><h1>OMR {total_rev:.3f}</h1></div>", unsafe_allow_html=True)
-            c2.markdown(f"<div class='metric-card'><h3>🧾 Orders</h3><h1>{len(orders)}</h1></div>", unsafe_allow_html=True)
+            c1.markdown(f"<div class='metric-card'><h3>💰 Total Revenue</h3><h1>OMR {total_rev:.3f}</h1></div>", unsafe_allow_html=True)
+            c2.markdown(f"<div class='metric-card'><h3>🧾 Total Orders</h3><h1>{len(orders)}</h1></div>", unsafe_allow_html=True)
             st.divider()
 
-            st.subheader("👨‍🍳 Kitchen Summary")
-            item_totals = {}
+            # 2. Detailed Item Breakdown (New!)
+            st.subheader("🔥 Sales Performance by Dish")
+            
+            item_stats = {}
             for order in orders:
                 for item_obj in order['items']:
                     name = item_obj['item']
                     qty = item_obj['qty']
-                    item_totals[name] = item_totals.get(name, 0) + qty
-            if item_totals:
-                totals_df = pd.DataFrame(list(item_totals.items()), columns=["Item", "To Cook"]).sort_values("To Cook", ascending=False)
-                st.dataframe(totals_df, use_container_width=True, hide_index=True)
+                    price = item_obj['price'] # This is total price for that line (qty * unit_price)
+                    
+                    if name not in item_stats:
+                        item_stats[name] = {'qty': 0, 'revenue': 0.0}
+                    
+                    item_stats[name]['qty'] += qty
+                    item_stats[name]['revenue'] += price
 
-            st.subheader("📋 Transaction List")
+            if item_stats:
+                # Convert to DataFrame
+                stats_data = []
+                for name, stats in item_stats.items():
+                    stats_data.append({
+                        "Menu Item": name,
+                        "Qty Sold": stats['qty'],
+                        "Total Revenue (OMR)": stats['revenue']
+                    })
+                
+                stats_df = pd.DataFrame(stats_data)
+                # Sort by Revenue (Highest first)
+                stats_df = stats_df.sort_values(by="Total Revenue (OMR)", ascending=False)
+                
+                # Format OMR column nicely
+                stats_df["Total Revenue (OMR)"] = stats_df["Total Revenue (OMR)"].apply(lambda x: f"{x:.3f}")
+                
+                st.dataframe(stats_df, use_container_width=True, hide_index=True)
+
+            st.divider()
+            
+            # 3. Transaction List
+            st.subheader("📋 Transaction Log")
             display_data = []
             for o in reversed(orders):
                 display_data.append({
@@ -296,7 +324,7 @@ elif view_mode == "📖 User Guide":
     
     #### **B. 📊 Towkay Dashboard (Admin)**
     * **📅 Pilih Tarikh:** Lihat jualan hari ini atau minggu lepas.
-    * **Tab 1: Sales:** Lihat jumlah duit (OMR) dan senarai masakan dapur.
+    * **Tab 1: Sales:** Lihat jumlah duit (OMR), jumlah jualan setiap menu (Qty & Revenue).
     * **Tab 2: Downloads:** Muat turun laporan PDF/HTML atau Gambar (PNG).
     * **Tab 3: Menu:** Tukar harga atau tambah makanan baru.
     
