@@ -27,7 +27,19 @@ OMAN_TZ = timezone(timedelta(hours=4))
 # CSS Styling
 st.markdown("""
     <style>
-    div[data-testid="stImage"] > img { display: block; margin-left: auto; margin-right: auto; }
+    /* FORCE IMAGE CENTERING ON ALL DEVICES */
+    div[data-testid="stImage"] {
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
+        width: 100%;
+        text-align: center;
+    }
+    div[data-testid="stImage"] > img {
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
+    }
     
     .metric-card {
         background-color: #FFF8E1;
@@ -87,8 +99,9 @@ st.markdown("""
         margin-bottom: 20px;
     }
 
-    /* WELCOME MESSAGE STYLING (UPDATED: Justified) */
+    /* WELCOME MESSAGE STYLING (RESTORED TO CENTER) */
     .welcome-container {
+        text-align: center; /* RESTORED TO CENTER */
         margin-bottom: 25px;
         padding: 15px;
         background-color: #FAFAFA;
@@ -100,29 +113,29 @@ st.markdown("""
         font-size: 1.5em;
         font-weight: bold;
         margin-bottom: 10px;
-        text-align: center; /* Title remains centered */
     }
     .welcome-text {
         color: #555;
         font-size: 1em;
         line-height: 1.6;
         margin-bottom: 10px;
-        text-align: justify; /* Justify text for clean edges */
-        text-justify: inter-word;
+        /* Removed text-align: justify to restore center alignment inherited from container */
     }
     .welcome-loc {
         color: #E65100;
         font-weight: bold;
         font-size: 1em;
-        text-align: center; /* Location centered */
         margin-top: 10px;
     }
     </style>
 """, unsafe_allow_html=True)
 
 # --- HEADER LOGO ---
+# Using col1, col2, col3 trick to force centering if CSS fails
 if os.path.exists("street_vibes.png"):
-    st.image("street_vibes.png", width=250)
+    c1, c2, c3 = st.columns([1, 2, 1])
+    with c2:
+        st.image("street_vibes.png", width=250)
 else:
     st.markdown("<h1 style='text-align: center;'>🍜 Malaysian Street Vibes</h1>", unsafe_allow_html=True)
 st.write("---")
@@ -311,7 +324,7 @@ if app_mode == "🍽️ Customer Menu":
 
     if st.session_state.order_step == 'menu':
         
-        # --- NEW: WELCOME MESSAGE (JUSTIFIED) ---
+        # --- WELCOME MESSAGE (RESTORED TO CENTERED) ---
         st.markdown("""
         <div class="welcome-container">
             <div class="welcome-title">Welcome to Malaysian Street Vibes</div>
@@ -322,7 +335,7 @@ if app_mode == "🍽️ Customer Menu":
             <div class="welcome-loc">📍 Location: Orange Pearl Tea, Azaiba</div>
         </div>
         """, unsafe_allow_html=True)
-        # ----------------------------
+        # -----------------------------------------------
 
         with st.expander("ℹ️ How to Order / Cara Memesan"):
             st.markdown("""
@@ -476,7 +489,6 @@ elif app_mode == "🔐 Owner Login":
                 st.subheader("👥 By Customer")
                 df_cust = pd.DataFrame([{"Customer": o['customer'], "Time": o['time'], "Items": o['item_summary'], "Total": f"{o['total']:.3f}"} for o in orders])
                 
-                # UPDATED: CENTERED TABLE
                 st.dataframe(
                     df_cust.sort_values("Customer").style.set_properties(**{'text-align': 'center'}).set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}]),
                     width="stretch", 
@@ -494,7 +506,6 @@ elif app_mode == "🔐 Owner Login":
                 if stats:
                     df_stats = pd.DataFrame([{"Item":k,"Qty":v['qty'],"Rev":f"{v['rev']:.3f}"} for k,v in stats.items()])
                     df_stats = df_stats.sort_values("Qty", ascending=False)
-                    # UPDATED: CENTERED TABLE
                     st.dataframe(
                         df_stats.style.set_properties(**{'text-align': 'center'}).set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}]), 
                         width="stretch", 
