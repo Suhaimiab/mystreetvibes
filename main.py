@@ -27,7 +27,13 @@ OMAN_TZ = timezone(timedelta(hours=4))
 # CSS Styling
 st.markdown("""
     <style>
-    /* FORCE IMAGE CENTERING ON ALL DEVICES */
+    /* ADJUST TOP PADDING SO LOGO ISN'T CUT OFF */
+    .block-container {
+        padding-top: 3.5rem !important;
+        padding-bottom: 2rem !important;
+    }
+
+    /* FORCE IMAGE CENTERING */
     div[data-testid="stImage"] {
         display: block;
         margin-left: auto;
@@ -90,46 +96,46 @@ st.markdown("""
     .shop-info {
         background-color: #E3F2FD;
         color: #0D47A1;
-        padding: 20px;
+        padding: 15px;
         text-align: center;
         border-radius: 10px;
         border: 2px solid #2196F3;
         font-weight: bold;
-        font-size: 1.1em;
-        margin-bottom: 20px;
+        font-size: 1em;
+        margin-bottom: 15px;
     }
 
-    /* WELCOME MESSAGE STYLING */
+    /* COMPACT WELCOME MESSAGE STYLING */
     .welcome-container {
         text-align: center;
-        margin-bottom: 25px;
-        padding: 15px;
+        margin-bottom: 15px;
+        padding: 10px;
         background-color: #FAFAFA;
         border-radius: 10px;
         border-bottom: 2px solid #5D4037;
     }
     .welcome-title {
         color: #5D4037;
-        font-size: 1.5em;
+        font-size: 1.3em;
         font-weight: bold;
-        margin-bottom: 10px;
+        margin-bottom: 5px;
     }
     .welcome-text {
         color: #555;
-        font-size: 1em;
-        line-height: 1.6;
-        margin-bottom: 15px;
+        font-size: 0.9em;
+        line-height: 1.4;
+        margin-bottom: 8px;
     }
     .welcome-time {
-        color: #1565C0; /* Blue text for time */
+        color: #1565C0;
         font-weight: bold;
-        font-size: 1.1em;
-        margin-bottom: 10px;
+        font-size: 1em;
+        margin-bottom: 5px;
     }
     .welcome-loc {
         color: #E65100;
         font-weight: bold;
-        font-size: 1em;
+        font-size: 0.9em;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -138,10 +144,9 @@ st.markdown("""
 if os.path.exists("street_vibes.png"):
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
-        st.image("street_vibes.png", width=250)
+        st.image("street_vibes.png", width=220)
 else:
     st.markdown("<h1 style='text-align: center;'>🍜 Malaysian Street Vibes</h1>", unsafe_allow_html=True)
-st.write("---")
 
 # --- 2. DROPBOX CONNECTION ---
 try:
@@ -293,6 +298,7 @@ def generate_png_image(df):
     return buf
 
 # --- 4. NAVIGATION ---
+# Navigation sidebar hidden on load for cleaner look
 if os.path.exists("street_vibes.png"):
     st.sidebar.image("street_vibes.png", width=100)
 
@@ -334,7 +340,7 @@ if app_mode == "🍽️ Customer Menu":
         except:
             nice_date_str = config['active_date']
 
-        # --- WELCOME MESSAGE (TIME ABOVE LOCATION) ---
+        # --- WELCOME MESSAGE (COMPACT) ---
         st.markdown(f"""
         <div class="welcome-container">
             <div class="welcome-title">Welcome to Malaysian Street Vibes</div>
@@ -349,7 +355,7 @@ if app_mode == "🍽️ Customer Menu":
             <div class="welcome-loc">📍 Location: Orange Pearl Tea, Azaiba</div>
         </div>
         """, unsafe_allow_html=True)
-        # ---------------------------------------------
+        # ---------------------------------
 
         with st.expander("ℹ️ How to Order / Cara Memesan"):
             st.markdown("""
