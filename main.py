@@ -87,6 +87,33 @@ st.markdown("""
         font-size: 1.1em;
         margin-bottom: 20px;
     }
+
+    /* WELCOME MESSAGE STYLING */
+    .welcome-container {
+        text-align: center;
+        margin-bottom: 25px;
+        padding: 10px;
+        background-color: #FAFAFA;
+        border-radius: 10px;
+        border-bottom: 2px solid #5D4037;
+    }
+    .welcome-title {
+        color: #5D4037;
+        font-size: 1.5em;
+        font-weight: bold;
+        margin-bottom: 10px;
+    }
+    .welcome-text {
+        color: #555;
+        font-size: 1em;
+        line-height: 1.5;
+        margin-bottom: 10px;
+    }
+    .welcome-loc {
+        color: #E65100; /* Orange color for 'Orange Pearl Tea' */
+        font-weight: bold;
+        font-size: 1em;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -280,6 +307,20 @@ if app_mode == "🍽️ Customer Menu":
         """, unsafe_allow_html=True)
 
     if st.session_state.order_step == 'menu':
+        
+        # --- NEW: WELCOME MESSAGE ---
+        st.markdown("""
+        <div class="welcome-container">
+            <div class="welcome-title">Welcome to Malaysian Street Vibes</div>
+            <div class="welcome-text">
+                We are serving you popular and mouth-watering Malaysian delicacies in the City of Muscat, Oman.<br>
+                Enjoy Malaysian hospitality at its very best.
+            </div>
+            <div class="welcome-loc">📍 Location: Orange Pearl Tea, Azaiba</div>
+        </div>
+        """, unsafe_allow_html=True)
+        # ----------------------------
+
         with st.expander("ℹ️ How to Order / Cara Memesan"):
             st.markdown("""
             1. **Select Food:** Click 'Add'.
@@ -287,7 +328,6 @@ if app_mode == "🍽️ Customer Menu":
             3. **Review:** Click 'Review Order'.
             4. **Submit:** Click 'Confirm & Send'.
             """)
-        st.markdown("### 👋 Welcome! Please select your items.")
         
         menu = load_data("menu.json", {"Nasi Lemak": 1.500})
         col1, col2 = st.columns([1.5, 1])
@@ -474,17 +514,13 @@ elif app_mode == "🔐 Owner Login":
 # ==========================================
 elif app_mode == "🔄 Device Sync":
     
-    # --- AUTH CHECK ---
     if not st.session_state.get('authenticated', False):
         st.markdown("## 🔐 Security Check")
         st.info("Please enter the admin password to access Device Sync.")
-        
         with st.form("sync_login_form"):
             pwd = st.text_input("Password", type="password")
             submit_btn = st.form_submit_button("Access Sync Center")
-        
         correct_pwd = st.secrets["admin"]["password"] if "admin" in st.secrets else "admin123"
-        
         if submit_btn and pwd == correct_pwd:
             st.session_state['authenticated'] = True
             st.rerun()
@@ -492,7 +528,6 @@ elif app_mode == "🔄 Device Sync":
             st.error("Wrong Password")
             st.stop()
             
-    # --- IF AUTHENTICATED, SHOW SYNC PAGE ---
     if st.session_state.get('authenticated', False):
         st.markdown("## 📱 Sync Center")
         st.markdown("Manage data flow between this device and Dropbox Cloud.")
@@ -505,14 +540,10 @@ elif app_mode == "🔄 Device Sync":
             st.stop()
 
         current_file = get_active_week_filename()
-        
         st.subheader(f"📄 Current Active File: `{current_file}`")
         last_mod = get_file_metadata(current_file)
-        
-        if last_mod:
-            st.info(f"☁️ **Cloud Last Updated:** {last_mod}")
-        else:
-            st.warning("⚠️ File not found in Cloud (New Week?)")
+        if last_mod: st.info(f"☁️ **Cloud Last Updated:** {last_mod}")
+        else: st.warning("⚠️ File not found in Cloud (New Week?)")
 
         st.divider()
 
@@ -556,9 +587,6 @@ elif app_mode == "🔄 Device Sync":
                     if c2.button("🗑️", key=f"del_file_{f}"):
                         if delete_dropbox_file(f):
                             st.toast(f"Deleted {f}")
-                            time.sleep(1)
-                            st.rerun()
-                        else:
-                            st.error("Failed to delete.")
-            else:
-                st.write("Folder is empty.")
+                            time.sleep(1); st.rerun()
+                        else: st.error("Failed to delete.")
+            else: st.write("Folder is empty.")
