@@ -99,9 +99,9 @@ st.markdown("""
         margin-bottom: 20px;
     }
 
-    /* WELCOME MESSAGE STYLING (RESTORED TO CENTER) */
+    /* WELCOME MESSAGE STYLING */
     .welcome-container {
-        text-align: center; /* RESTORED TO CENTER */
+        text-align: center;
         margin-bottom: 25px;
         padding: 15px;
         background-color: #FAFAFA;
@@ -118,20 +118,23 @@ st.markdown("""
         color: #555;
         font-size: 1em;
         line-height: 1.6;
+        margin-bottom: 15px;
+    }
+    .welcome-time {
+        color: #1565C0; /* Blue text for time */
+        font-weight: bold;
+        font-size: 1.1em;
         margin-bottom: 10px;
-        /* Removed text-align: justify to restore center alignment inherited from container */
     }
     .welcome-loc {
         color: #E65100;
         font-weight: bold;
         font-size: 1em;
-        margin-top: 10px;
     }
     </style>
 """, unsafe_allow_html=True)
 
 # --- HEADER LOGO ---
-# Using col1, col2, col3 trick to force centering if CSS fails
 if os.path.exists("street_vibes.png"):
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
@@ -324,18 +327,29 @@ if app_mode == "🍽️ Customer Menu":
 
     if st.session_state.order_step == 'menu':
         
-        # --- WELCOME MESSAGE (RESTORED TO CENTERED) ---
-        st.markdown("""
+        # Pre-calculate nice date
+        try:
+            d_obj = datetime.strptime(config['active_date'], "%Y-%m-%d")
+            nice_date_str = d_obj.strftime("%A, %d %b %Y")
+        except:
+            nice_date_str = config['active_date']
+
+        # --- WELCOME MESSAGE (TIME ABOVE LOCATION) ---
+        st.markdown(f"""
         <div class="welcome-container">
             <div class="welcome-title">Welcome to Malaysian Street Vibes</div>
             <div class="welcome-text">
                 We are serving you popular and mouth-watering Malaysian delicacies in the City of Muscat, Oman.<br>
                 Enjoy Malaysian hospitality at its very best.
             </div>
+            <div class="welcome-time">
+                See you all on {nice_date_str}<br>
+                from {config['open_time']} to {config['close_time']}
+            </div>
             <div class="welcome-loc">📍 Location: Orange Pearl Tea, Azaiba</div>
         </div>
         """, unsafe_allow_html=True)
-        # -----------------------------------------------
+        # ---------------------------------------------
 
         with st.expander("ℹ️ How to Order / Cara Memesan"):
             st.markdown("""
