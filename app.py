@@ -230,13 +230,16 @@ def list_dropbox_files():
         return [entry.name for entry in res.entries]
     except: return []
 
-# --- WHATSAPP HELPER ---
+# --- WHATSAPP HELPER (UPDATED TO DIRECT API) ---
 def generate_whatsapp_link(number, order_data):
     if not number: return None
+    # Remove all non-numeric characters for safety
     clean_num = ''.join(filter(str.isdigit, number))
+    
     items_list = ""
     for item in order_data['items']:
         items_list += f"• {item['qty']}x {item['item']}\n"
+    
     msg = f"""*New Order!* 🍜
 Customer: *{order_data['customer']}*
 Time: {order_data['time']}
@@ -244,6 +247,8 @@ Time: {order_data['time']}
 *Items:*
 {items_list}
 *Total: OMR {order_data['total']:.3f}*"""
+    
+    # CHANGED: Using api.whatsapp.com instead of wa.me for better reliability
     return f"https://api.whatsapp.com/send?phone={clean_num}&text={quote(msg)}"
 
 # --- EXPORT FUNCTIONS ---
@@ -474,7 +479,7 @@ elif app_mode == "🔐 Owner Login":
             with c3: new_close = st.time_input("Close Time", value=curr_close)
             
             if st.button("💾 Save Settings", type="primary", width="stretch"):
-                save_config(new_date, new_open, new_close)
+                save_config(new_date, new_open, new_close, KITCHEN_HOTLINE)
                 st.success("✅ Settings Updated!")
                 time.sleep(1); st.rerun()
             
@@ -538,34 +543,10 @@ elif app_mode == "🔐 Owner Login":
 
         with t3:
             curr = load_data("menu.json", {"Nasi Lemak": 1.500})
-            
-            # --- NEW MENU EDIT SECTION ---
-            st.write("### ✏️ Edit / Add Items")
-            df_menu = pd.DataFrame(list(curr.items()), columns=["Item", "Price (OMR)"])
-            ed = st.data_editor(df_menu, num_rows="dynamic", width="stretch", key="menu_editor")
-            
-            if st.button("💾 Save Changes", type="primary", width="stretch"):
-                new_menu = dict(zip(ed["Item"], ed["Price (OMR)"]))
-                save_data("menu.json", new_menu)
-                st.success("Menu Updated!")
-                time.sleep(1); st.rerun()
-            
-            st.divider()
-            
-            # --- NEW DELETE SECTION ---
-            st.write("### ❌ Delete Items")
-            item_list = list(curr.keys())
-            to_delete = st.multiselect("Select items to remove:", item_list)
-            
-            if to_delete:
-                if st.button(f"🗑️ Delete {len(to_delete)} Item(s)", type="secondary", width="stretch"):
-                    for item in to_delete:
-                        if item in curr: del curr[item]
-                    save_data("menu.json", curr)
-                    st.error(f"Deleted: {', '.join(to_delete)}")
-                    time.sleep(1); st.rerun()
-            # ---------------------------
-
+            ed = st.data_editor(pd.DataFrame(list(curr.items()), columns=["Item", "Price (OMR)"]), num_rows="dynamic", width="stretch")
+            if st.button("💾 Save Menu"):
+                save_data("menu.json", dict(zip(ed["Item"], ed["Price (OMR)"])))
+                st.success("Updated!")
     else: st.info("Please Login.")
 
 # ==========================================
