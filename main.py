@@ -75,7 +75,6 @@ st.markdown("""
     .sync-online { background-color: #E8F5E9; border-color: #4CAF50; color: #1B5E20; }
     .sync-offline { background-color: #FFEBEE; border-color: #F44336; color: #B71C1C; }
     
-    /* UPDATED: Neutral Info Box for Hours */
     .shop-info {
         background-color: #E3F2FD;
         color: #0D47A1;
@@ -88,11 +87,10 @@ st.markdown("""
         margin-bottom: 20px;
     }
 
-    /* WELCOME MESSAGE STYLING */
+    /* WELCOME MESSAGE STYLING (UPDATED: Justified) */
     .welcome-container {
-        text-align: center;
         margin-bottom: 25px;
-        padding: 10px;
+        padding: 15px;
         background-color: #FAFAFA;
         border-radius: 10px;
         border-bottom: 2px solid #5D4037;
@@ -102,17 +100,22 @@ st.markdown("""
         font-size: 1.5em;
         font-weight: bold;
         margin-bottom: 10px;
+        text-align: center; /* Title remains centered */
     }
     .welcome-text {
         color: #555;
         font-size: 1em;
-        line-height: 1.5;
+        line-height: 1.6;
         margin-bottom: 10px;
+        text-align: justify; /* Justify text for clean edges */
+        text-justify: inter-word;
     }
     .welcome-loc {
-        color: #E65100; /* Orange color for 'Orange Pearl Tea' */
+        color: #E65100;
         font-weight: bold;
         font-size: 1em;
+        text-align: center; /* Location centered */
+        margin-top: 10px;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -308,7 +311,7 @@ if app_mode == "🍽️ Customer Menu":
 
     if st.session_state.order_step == 'menu':
         
-        # --- NEW: WELCOME MESSAGE ---
+        # --- NEW: WELCOME MESSAGE (JUSTIFIED) ---
         st.markdown("""
         <div class="welcome-container">
             <div class="welcome-title">Welcome to Malaysian Street Vibes</div>
@@ -473,7 +476,12 @@ elif app_mode == "🔐 Owner Login":
                 st.subheader("👥 By Customer")
                 df_cust = pd.DataFrame([{"Customer": o['customer'], "Time": o['time'], "Items": o['item_summary'], "Total": f"{o['total']:.3f}"} for o in orders])
                 
-                st.dataframe(df_cust.sort_values("Customer"), width="stretch", hide_index=True)
+                # UPDATED: CENTERED TABLE
+                st.dataframe(
+                    df_cust.sort_values("Customer").style.set_properties(**{'text-align': 'center'}).set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}]),
+                    width="stretch", 
+                    hide_index=True
+                )
                 
                 st.subheader("🔥 By Dish")
                 stats = {}
@@ -486,7 +494,12 @@ elif app_mode == "🔐 Owner Login":
                 if stats:
                     df_stats = pd.DataFrame([{"Item":k,"Qty":v['qty'],"Rev":f"{v['rev']:.3f}"} for k,v in stats.items()])
                     df_stats = df_stats.sort_values("Qty", ascending=False)
-                    st.dataframe(df_stats, width="stretch", hide_index=True)
+                    # UPDATED: CENTERED TABLE
+                    st.dataframe(
+                        df_stats.style.set_properties(**{'text-align': 'center'}).set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}]), 
+                        width="stretch", 
+                        hide_index=True
+                    )
                 else:
                     df_stats = pd.DataFrame()
 
