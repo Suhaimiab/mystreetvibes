@@ -29,7 +29,7 @@ st.markdown("""
     <style>
     /* ADJUST TOP PADDING SO LOGO ISN'T CUT OFF */
     .block-container {
-        padding-top: 3.5rem !important;
+        padding-top: 6rem !important;
         padding-bottom: 2rem !important;
     }
 
@@ -189,16 +189,16 @@ def delete_dropbox_file(filename):
 def get_config():
     defaults = {
         "active_date": datetime.now(OMAN_TZ).strftime("%Y-%m-%d"),
-        "open_time": "12:00",
-        "close_time": "23:59"
+        "open_time": "12:00 PM",
+        "close_time": "11:59 PM"
     }
     return load_data("config.json", defaults)
 
 def save_config(date_obj, start_t, end_t):
     config = {
         "active_date": date_obj.strftime("%Y-%m-%d"),
-        "open_time": start_t.strftime("%H:%M"),
-        "close_time": end_t.strftime("%H:%M")
+        "open_time": start_t.strftime("%I:%M %p"), # Ensure AM/PM save
+        "close_time": end_t.strftime("%I:%M %p")
     }
     save_data("config.json", config)
 
@@ -209,14 +209,41 @@ def get_active_week_filename():
     week = date_obj.strftime("%U")
     return f"orders_{year}_week{week}.json"
 
+# --- NEW: FORCE 12-HOUR FORMAT HELPER ---
+def format_to_12hr(t_input):
+    """Ensures input is displayed as 12-hour AM/PM format string"""
+    try:
+        if isinstance(t_input, dt_time):
+            return t_input.strftime("%I:%M %p")
+        
+        # Try parsing as 24-hour string "13:00"
+        try:
+            t_obj = datetime.strptime(str(t_input), "%H:%M").time()
+            return t_obj.strftime("%I:%M %p")
+        except ValueError:
+            pass
+            
+        # Try parsing as 12-hour string "01:00 PM" to verify it's valid
+        datetime.strptime(str(t_input), "%I:%M %p")
+        return str(t_input)
+    except:
+        return str(t_input) # Fallback if all else fails
+
 def is_shop_open():
     config = get_config()
     now = datetime.now(OMAN_TZ).time()
+    
     try:
-        start = datetime.strptime(config["open_time"], "%H:%M").time()
-        end = datetime.strptime(config["close_time"], "%H:%M").time()
-    except:
-        return True
+        # Check if saved format is AM/PM
+        start = datetime.strptime(config["open_time"], "%I:%M %p").time()
+        end = datetime.strptime(config["close_time"], "%I:%M %p").time()
+    except ValueError:
+        try:
+            # Fallback to 24h
+            start = datetime.strptime(config["open_time"], "%H:%M").time()
+            end = datetime.strptime(config["close_time"], "%H:%M").time()
+        except:
+            return True
     
     if start <= end:
         return start <= now <= end
@@ -298,7 +325,6 @@ def generate_png_image(df):
     return buf
 
 # --- 4. NAVIGATION ---
-# Navigation sidebar hidden on load for cleaner look
 if os.path.exists("street_vibes.png"):
     st.sidebar.image("street_vibes.png", width=100)
 
@@ -316,31 +342,29 @@ if app_mode == "🍽️ Customer Menu":
     shop_open = is_shop_open()
     config = get_config()
     
+    # Pre-calculate display strings
+    try:
+        d_obj = datetime.strptime(config['active_date'], "%Y-%m-%d")
+        nice_date_str = d_obj.strftime("%A, %d %b %Y")
+    except:
+        nice_date_str = config['active_date']
+        
+    # FORCE 12-HR FORMAT
+    disp_open = format_to_12hr(config['open_time'])
+    disp_close = format_to_12hr(config['close_time'])
+
     # --- CLOSED MESSAGE ---
     if not shop_open:
-        try:
-            d_obj = datetime.strptime(config['active_date'], "%Y-%m-%d")
-            nice_date = d_obj.strftime("%A, %d %b %Y")
-        except:
-            nice_date = config['active_date']
-            
         st.markdown(f"""
         <div class="shop-info">
-            ℹ️ Shop is open on <b>{nice_date}</b><br>
-            from <b>{config['open_time']}</b> to <b>{config['close_time']}</b>
+            ℹ️ Shop is open on <b>{nice_date_str}</b><br>
+            from <b>{disp_open}</b> to <b>{disp_close}</b>
         </div>
         """, unsafe_allow_html=True)
 
     if st.session_state.order_step == 'menu':
         
-        # Pre-calculate nice date
-        try:
-            d_obj = datetime.strptime(config['active_date'], "%Y-%m-%d")
-            nice_date_str = d_obj.strftime("%A, %d %b %Y")
-        except:
-            nice_date_str = config['active_date']
-
-        # --- WELCOME MESSAGE (COMPACT) ---
+        # --- WELCOME MESSAGE ---
         st.markdown(f"""
         <div class="welcome-container">
             <div class="welcome-title">Welcome to Malaysian Street Vibes</div>
@@ -350,12 +374,11 @@ if app_mode == "🍽️ Customer Menu":
             </div>
             <div class="welcome-time">
                 See you all on {nice_date_str}<br>
-                from {config['open_time']} to {config['close_time']}
+                from {disp_open} to {disp_close}
             </div>
             <div class="welcome-loc">📍 Location: Orange Pearl Tea, Azaiba</div>
         </div>
         """, unsafe_allow_html=True)
-        # ---------------------------------
 
         with st.expander("ℹ️ How to Order / Cara Memesan"):
             st.markdown("""
@@ -416,9 +439,14 @@ if app_mode == "🍽️ Customer Menu":
                     summary = ", ".join([f"{x['qty']}x {x['item']}" for x in st.session_state.cart])
                     now_oman = datetime.now(OMAN_TZ)
                     orders.append({
-                        "id": int(time.time()), "date": now_oman.strftime("%Y-%m-%d"),
-                        "time": now_oman.strftime("%H:%M"), "customer": f"{meta['name']} ({meta['table']})",
-                        "items": st.session_state.cart, "item_summary": summary, "total": meta['total'], "status": "New"
+                        "id": int(time.time()), 
+                        "date": now_oman.strftime("%Y-%m-%d"),
+                        "time": now_oman.strftime("%I:%M %p"), # AM/PM
+                        "customer": f"{meta['name']} ({meta['table']})",
+                        "items": st.session_state.cart, 
+                        "item_summary": summary, 
+                        "total": meta['total'], 
+                        "status": "New"
                     })
                     save_data(fn, orders)
                     st.session_state.order_step = 'success'; st.rerun()
@@ -428,7 +456,10 @@ if app_mode == "🍽️ Customer Menu":
         st.title("✅ Order Received!")
         st.markdown("### Thank you for your order.")
         
-        config = get_config()
+        # Prepare 12hr strings again for success page
+        disp_open = format_to_12hr(config['open_time'])
+        disp_close = format_to_12hr(config['close_time'])
+        
         try:
             d_obj = datetime.strptime(config['active_date'], "%Y-%m-%d")
             nice_date = d_obj.strftime("%A, %d %b %Y")
@@ -437,7 +468,7 @@ if app_mode == "🍽️ Customer Menu":
             
         st.markdown(f"""
         We look forward to serving you at **Orange Pearl Tea** on<br>
-        **{nice_date}** from **{config['open_time']}** to **{config['close_time']}**!
+        **{nice_date}** from **{disp_open}** to **{disp_close}**!
         """, unsafe_allow_html=True)
         
         st.info("Sent to Food Processing Team!")
@@ -463,20 +494,34 @@ elif app_mode == "🔐 Owner Login":
         with st.expander("⚙️ Admin: Active Date & Operating Hours"):
             st.info("Set the date for order files AND the opening hours for that day.")
             c1, c2, c3 = st.columns(3)
+            
+            def parse_time_config(t_str):
+                try: return datetime.strptime(t_str, "%I:%M %p").time()
+                except: 
+                    try: return datetime.strptime(t_str, "%H:%M").time()
+                    except: return datetime.now().time()
+
             curr_config = get_config()
             curr_date = datetime.strptime(curr_config["active_date"], "%Y-%m-%d")
-            curr_open = datetime.strptime(curr_config["open_time"], "%H:%M").time()
-            curr_close = datetime.strptime(curr_config["close_time"], "%H:%M").time()
+            curr_open = parse_time_config(curr_config["open_time"])
+            curr_close = parse_time_config(curr_config["close_time"])
+            
             with c1: new_date = st.date_input("Active Date", value=curr_date)
             with c2: new_open = st.time_input("Open Time", value=curr_open)
             with c3: new_close = st.time_input("Close Time", value=curr_close)
+            
             if st.button("💾 Save Settings", type="primary", width="stretch"):
                 save_config(new_date, new_open, new_close)
                 st.success("✅ Settings Updated!")
                 time.sleep(1); st.rerun()
+            
             p_year = new_date.strftime("%Y")
             p_week = new_date.strftime("%U")
-            st.caption(f"📂 File: `orders_{p_year}_week{p_week}.json` | 🕒 Hours: {new_open} - {new_close}")
+            
+            # Display 12hr format in caption
+            disp_open_c = format_to_12hr(curr_config['open_time'])
+            disp_close_c = format_to_12hr(curr_config['close_time'])
+            st.caption(f"📂 File: `orders_{p_year}_week{p_week}.json` | 🕒 Hours: {disp_open_c} - {disp_close_c}")
 
         if st.button("🔄 Refresh Data"): st.rerun()
         
