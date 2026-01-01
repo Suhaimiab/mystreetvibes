@@ -209,26 +209,24 @@ def format_to_12hr(t_input):
 def is_shop_open():
     config = get_config()
     
-    # 1. Force Open Override
+    # 1. Force Open Check (Manual Override)
     if config.get("force_open", False):
         return True
 
-    # 2. Date Check (Must be the Active Date)
-    active_date_str = config['active_date']
-    now = datetime.now(OMAN_TZ)
-    if now.strftime("%Y-%m-%d") != active_date_str:
-        return False # Closed if date doesn't match
-
-    # 3. Time Check (ONLY check Closing Time)
+    # 2. Strict Time Check
+    now = datetime.now(OMAN_TZ).time()
     try:
+        start = datetime.strptime(config["open_time"], "%I:%M %p").time()
         end = datetime.strptime(config["close_time"], "%I:%M %p").time()
     except ValueError:
         try:
+            start = datetime.strptime(config["open_time"], "%H:%M").time()
             end = datetime.strptime(config["close_time"], "%H:%M").time()
         except: return True
         
-    # Logic: Open from 00:00 until End Time
-    return now.time() <= end
+    # Logic: Open if current time is BEFORE closing time
+    # (Since you requested "open from start", we basically assume it's open if it hasn't closed yet)
+    return now <= end
 
 def get_file_metadata(filename):
     try:
@@ -518,7 +516,7 @@ elif app_mode == "🔐 Owner Login":
         st.caption(f"Viewing File: `{t_file_view}`")
         orders = load_data(t_file_view, [])
 
-        t1, t2, t3 = st.tabs(["🔥 Kitchen Live", "💰 Sales", "🛠️ Menu"])
+        t1, t2, t3, t4 = st.tabs(["🔥 Kitchen Live", "💰 Sales", "🛠️ Menu", "📖 Panduan"])
         
         with t1:
             st.subheader("Incoming Orders")
@@ -589,6 +587,90 @@ elif app_mode == "🔐 Owner Login":
                     save_data("menu.json", curr)
                     st.error(f"Deleted: {', '.join(to_delete)}")
                     time.sleep(1); st.rerun()
+        
+        with t4:
+            st.markdown("""
+            # 📋 Panduan Pengguna Admin - Malaysian Street Vibes
+
+            Selamat datang ke Dashboard Towkay! Panduan ini akan membantu anda menguruskan kedai, menu, dan jualan menggunakan aplikasi ini.
+
+            ---
+
+            ### 1️⃣ Cara Log Masuk (Login)
+            1.  Buka aplikasi.
+            2.  Di bahagian kiri (Sidebar), pilih **🔐 Owner Login**.
+            3.  Masukkan kata laluan (Password) anda.
+            4.  Tekan **Enter** atau butang **Login**.
+
+            ---
+
+            ### 2️⃣ Tetapan Operasi (Settings)
+            Di sinilah anda menetapkan waktu perniagaan.
+
+            * **Active Date:** Tetapkan tarikh hari ini (Menu akan dipaparkan untuk tarikh ini).
+            * **Open Time:** Hanya untuk paparan pelanggan (pukul berapa mula berniaga).
+            * **Close Time:** Masa sistem akan **tutup automatik**. Selepas masa ini, pelanggan tidak boleh order.
+            * **🚨 Force Shop Open (Emergency):**
+                * Jika kotak ini **ditanda (Tick ✅)**: Kedai akan **sentiasa BUKA** 24 jam (mengabaikan jam tutup).
+                * Jika **tidak ditanda**: Kedai akan ikut waktu "Close Time".
+            * **Butang 💾 Save Settings:** Wajib tekan selepas ubah apa-apa tetapan.
+
+            ---
+
+            ### 3️⃣ Menguruskan Pesanan (Tab: 🔥 Kitchen Live)
+            Ini adalah paparan utama untuk melihat pesanan yang baru masuk.
+
+            * **Senarai Pesanan:** Pesanan terkini akan muncul di atas.
+            * **Butiran:** Anda boleh lihat Nama Pelanggan, Jenis (Dine-in/Takeaway), dan senarai makanan.
+            * **Padam Pesanan:** Jika ada kesilapan atau pesanan palsu, tekan butang **❌ Delete Order** untuk membuangnya dari sistem.
+
+            > **Nota WhatsApp:** Pelanggan akan menekan butang hijau di telefon mereka untuk menghantar butiran pesanan terus ke WhatsApp hotline (+968 7914 4711).
+
+            ---
+
+            ### 4️⃣ Laporan Jualan (Tab: 💰 Sales)
+            Lihat prestasi jualan harian anda.
+
+            * **Total Revenue:** Jumlah kutipan kasar (OMR).
+            * **Total Orders:** Bilangan pesanan.
+            * **👥 By Customer:** Senarai penuh siapa yang order dan pukul berapa.
+            * **🔥 By Dish:** Ranking makanan paling laku.
+            * **Eksport Data:**
+                * Tekan **⬇️ JSON** untuk simpanan data mentah.
+                * Tekan **📄 HTML** untuk laporan cantik (boleh diprint).
+                * Tekan **🖼️ PNG** untuk gambar ringkas laporan jualan (mudah share dalam WhatsApp group).
+
+            ---
+
+            ### 5️⃣ Menguruskan Menu (Tab: 🛠️ Menu)
+            Anda boleh ubah harga, tambah makanan, atau buang makanan.
+
+            **A. Ubah Harga / Tambah Item:**
+            1.  Lihat jadual menu.
+            2.  Klik pada nama makanan atau harga untuk **edit**.
+            3.  Untuk tambah item baru, klik pada baris kosong di bawah sekali dan taip nama & harga.
+            4.  Tekan **💾 Save Changes**.
+
+            **B. Buang Makanan (Delete):**
+            1.  Lihat bahagian bawah "❌ Delete Items".
+            2.  Pilih nama makanan dalam kotak pilihan (boleh pilih banyak sekali gus).
+            3.  Tekan butang **🗑️ Delete Item(s)**.
+
+            ---
+
+            ### 6️⃣ Sistem Simpanan Awan (Mode: 🔄 Device Sync)
+            Gunakan ini jika anda menukar peranti (contoh: dari Laptop ke iPad) supaya data tidak hilang.
+
+            * **Pastikan Online:** Kotak status mesti berwarna hijau (Connected to Dropbox).
+            * **⬆️ Upload to Cloud:** Tekan ini setiap kali habis berniaga ("Tutup Kedai") untuk simpan data jualan hari ini ke dalam internet (Dropbox).
+            * **⬇️ Download from Cloud:** Tekan ini jika anda baru buka kedai menggunakan peranti baru/lain untuk ambil semula data jualan terkini.
+
+            ---
+
+            **Tip Penting:**
+            * Sentiasa tekan **Refresh Data** jika anda rasa paparan tidak dikemaskini.
+            * Pastikan "Active Date" adalah betul setiap hari sebelum memulakan operasi.
+            """)
 
     else: st.info("Please Login.")
 
