@@ -174,15 +174,17 @@ def get_config():
     defaults = {
         "active_date": datetime.now(OMAN_TZ).strftime("%Y-%m-%d"),
         "open_time": "12:00 PM",
-        "close_time": "11:59 PM"
+        "close_time": "11:59 PM",
+        "force_open": False
     }
     return load_data("config.json", defaults)
 
-def save_config(date_obj, start_t, end_t):
+def save_config(date_obj, start_t, end_t, force_bool):
     config = {
         "active_date": date_obj.strftime("%Y-%m-%d"),
         "open_time": start_t.strftime("%I:%M %p"),
-        "close_time": end_t.strftime("%I:%M %p")
+        "close_time": end_t.strftime("%I:%M %p"),
+        "force_open": force_bool
     }
     save_data("config.json", config)
 
@@ -206,17 +208,27 @@ def format_to_12hr(t_input):
 
 def is_shop_open():
     config = get_config()
-    now = datetime.now(OMAN_TZ).time()
+    
+    # 1. Force Open Override
+    if config.get("force_open", False):
+        return True
+
+    # 2. Date Check (Must be the Active Date)
+    active_date_str = config['active_date']
+    now = datetime.now(OMAN_TZ)
+    if now.strftime("%Y-%m-%d") != active_date_str:
+        return False # Closed if date doesn't match
+
+    # 3. Time Check (ONLY check Closing Time)
     try:
-        start = datetime.strptime(config["open_time"], "%I:%M %p").time()
         end = datetime.strptime(config["close_time"], "%I:%M %p").time()
     except ValueError:
         try:
-            start = datetime.strptime(config["open_time"], "%H:%M").time()
             end = datetime.strptime(config["close_time"], "%H:%M").time()
         except: return True
-    if start <= end: return start <= now <= end
-    else: return start <= now or now <= end
+        
+    # Logic: Open from 00:00 until End Time
+    return now.time() <= end
 
 def get_file_metadata(filename):
     try:
@@ -329,7 +341,15 @@ if app_mode == "🍽️ Customer Menu":
             d_obj = datetime.strptime(config['active_date'], "%Y-%m-%d")
             nice_date = d_obj.strftime("%A, %d %b %Y")
         except: nice_date = config['active_date']
-        st.markdown(f"""<div class="shop-info">ℹ️ Shop is open on <b>{nice_date}</b><br>from <b>{format_to_12hr(config['open_time'])}</b> to <b>{format_to_12hr(config['close_time'])}</b></div>""", unsafe_allow_html=True)
+        
+        now_time_str = datetime.now(OMAN_TZ).strftime("%I:%M %p")
+        st.markdown(f"""
+        <div class="shop-info">
+            ℹ️ Shop is open on <b>{nice_date}</b><br>
+            until <b>{format_to_12hr(config['close_time'])}</b><br>
+            <span style="font-size:0.8em; color: #555;">(Current Time: {now_time_str})</span>
+        </div>
+        """, unsafe_allow_html=True)
 
     if st.session_state.order_step == 'menu':
         try:
@@ -467,14 +487,19 @@ elif app_mode == "🔐 Owner Login":
             curr_date = datetime.strptime(curr_config["active_date"], "%Y-%m-%d")
             curr_open = parse_time_config(curr_config["open_time"])
             curr_close = parse_time_config(curr_config["close_time"])
+            force_open_state = curr_config.get("force_open", False)
             
             c1, c2, c3 = st.columns(3)
             with c1: new_date = st.date_input("Active Date", value=curr_date)
             with c2: new_open = st.time_input("Open Time", value=curr_open)
             with c3: new_close = st.time_input("Close Time", value=curr_close)
             
+            # --- FORCE OPEN TOGGLE ---
+            st.write("### 🚨 Emergency Control")
+            new_force = st.checkbox("Force Shop Open (Ignore Time)", value=force_open_state, help="Check this to allow orders 24/7 regardless of set hours.")
+            
             if st.button("💾 Save Settings", type="primary", width="stretch"):
-                save_config(new_date, new_open, new_close)
+                save_config(new_date, new_open, new_close, new_force)
                 st.success("✅ Settings Updated!")
                 time.sleep(1); st.rerun()
             
@@ -482,7 +507,9 @@ elif app_mode == "🔐 Owner Login":
             p_week = new_date.strftime("%U")
             disp_open_c = format_to_12hr(curr_config['open_time'])
             disp_close_c = format_to_12hr(curr_config['close_time'])
-            st.caption(f"📂 File: `orders_{p_year}_week{p_week}.json` | 🕒 {disp_open_c}-{disp_close_c}")
+            
+            status_text = "🟢 FORCED OPEN" if force_open_state else "🕒 Follows Time"
+            st.caption(f"📂 File: `orders_{p_year}_week{p_week}.json` | {status_text}")
 
         if st.button("🔄 Refresh Data"): st.rerun()
         
@@ -539,7 +566,6 @@ elif app_mode == "🔐 Owner Login":
         with t3:
             curr = load_data("menu.json", {"Nasi Lemak": 1.500})
             
-            # --- NEW MENU EDIT SECTION ---
             st.write("### ✏️ Edit / Add Items")
             df_menu = pd.DataFrame(list(curr.items()), columns=["Item", "Price (OMR)"])
             ed = st.data_editor(df_menu, num_rows="dynamic", width="stretch", key="menu_editor")
@@ -552,7 +578,6 @@ elif app_mode == "🔐 Owner Login":
             
             st.divider()
             
-            # --- NEW DELETE SECTION ---
             st.write("### ❌ Delete Items")
             item_list = list(curr.keys())
             to_delete = st.multiselect("Select items to remove:", item_list)
@@ -564,7 +589,6 @@ elif app_mode == "🔐 Owner Login":
                     save_data("menu.json", curr)
                     st.error(f"Deleted: {', '.join(to_delete)}")
                     time.sleep(1); st.rerun()
-            # ---------------------------
 
     else: st.info("Please Login.")
 
