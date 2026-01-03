@@ -96,6 +96,11 @@ st.markdown("""
         font-size: 1em;
         margin-bottom: 15px;
     }
+    .shop-closed {
+        background-color: #FFEBEE;
+        color: #B71C1C;
+        border: 2px solid #F44336;
+    }
     .welcome-container {
         text-align: center;
         margin-bottom: 15px;
@@ -175,16 +180,16 @@ def get_config():
         "active_date": datetime.now(OMAN_TZ).strftime("%Y-%m-%d"),
         "open_time": "12:00 PM",
         "close_time": "11:59 PM",
-        "force_open": False
+        "shop_mode": "auto" # Values: 'auto', 'open', 'closed'
     }
     return load_data("config.json", defaults)
 
-def save_config(date_obj, start_t, end_t, force_bool):
+def save_config(date_obj, start_t, end_t, mode):
     config = {
         "active_date": date_obj.strftime("%Y-%m-%d"),
         "open_time": start_t.strftime("%I:%M %p"),
         "close_time": end_t.strftime("%I:%M %p"),
-        "force_open": force_bool
+        "shop_mode": mode
     }
     save_data("config.json", config)
 
@@ -208,25 +213,29 @@ def format_to_12hr(t_input):
 
 def is_shop_open():
     config = get_config()
+    mode = config.get("shop_mode", "auto")
     
-    # 1. Force Open Check (Manual Override)
-    if config.get("force_open", False):
-        return True
+    # 1. Manual Overrides
+    if mode == "open": return True
+    if mode == "closed": return False
 
-    # 2. Strict Time Check
-    now = datetime.now(OMAN_TZ).time()
+    # 2. Auto (Time Based) Logic
+    active_date_str = config['active_date']
+    now = datetime.now(OMAN_TZ)
+    
+    # Date check
+    if now.strftime("%Y-%m-%d") != active_date_str:
+        return False 
+
+    # Time check
     try:
-        start = datetime.strptime(config["open_time"], "%I:%M %p").time()
         end = datetime.strptime(config["close_time"], "%I:%M %p").time()
     except ValueError:
         try:
-            start = datetime.strptime(config["open_time"], "%H:%M").time()
             end = datetime.strptime(config["close_time"], "%H:%M").time()
         except: return True
         
-    # Logic: Open if current time is BEFORE closing time
-    # (Since you requested "open from start", we basically assume it's open if it hasn't closed yet)
-    return now <= end
+    return now.time() <= end
 
 def get_file_metadata(filename):
     try:
@@ -334,20 +343,24 @@ if app_mode == "🍽️ Customer Menu":
     shop_open = is_shop_open()
     config = get_config()
     
-    if not shop_open:
+    # Determine Banner Logic
+    now_time_str = datetime.now(OMAN_TZ).strftime("%I:%M %p")
+    banner_class = "shop-info"
+    banner_msg = ""
+    
+    if config.get('shop_mode') == 'closed':
+        banner_class = "shop-info shop-closed"
+        banner_msg = "⛔ <b>WE ARE CURRENTLY CLOSED (Stopped)</b><br>Please check back later."
+    elif not shop_open:
         try:
             d_obj = datetime.strptime(config['active_date'], "%Y-%m-%d")
             nice_date = d_obj.strftime("%A, %d %b %Y")
         except: nice_date = config['active_date']
-        
-        now_time_str = datetime.now(OMAN_TZ).strftime("%I:%M %p")
-        st.markdown(f"""
-        <div class="shop-info">
-            ℹ️ Shop is open on <b>{nice_date}</b><br>
-            until <b>{format_to_12hr(config['close_time'])}</b><br>
-            <span style="font-size:0.8em; color: #555;">(Current Time: {now_time_str})</span>
-        </div>
-        """, unsafe_allow_html=True)
+        banner_msg = f"ℹ️ Shop is open on <b>{nice_date}</b><br>until <b>{format_to_12hr(config['close_time'])}</b><br><span style='font-size:0.8em; color: #555;'>(Current Time: {now_time_str})</span>"
+    
+    # Display Banner if closed or forced closed
+    if not shop_open:
+        st.markdown(f"""<div class="{banner_class}">{banner_msg}</div>""", unsafe_allow_html=True)
 
     if st.session_state.order_step == 'menu':
         try:
@@ -472,7 +485,7 @@ elif app_mode == "🔐 Owner Login":
     if st.session_state.get('authenticated', False):
         st.title("📊 Towkay Dashboard")
         
-        with st.expander("⚙️ Admin Settings (Date & Time)"):
+        with st.expander("⚙️ Admin Settings (Date, Time & Status)"):
             st.info("Configure operating details.")
             
             def parse_time_config(t_str):
@@ -485,19 +498,28 @@ elif app_mode == "🔐 Owner Login":
             curr_date = datetime.strptime(curr_config["active_date"], "%Y-%m-%d")
             curr_open = parse_time_config(curr_config["open_time"])
             curr_close = parse_time_config(curr_config["close_time"])
-            force_open_state = curr_config.get("force_open", False)
+            curr_mode = curr_config.get("shop_mode", "auto")
             
             c1, c2, c3 = st.columns(3)
             with c1: new_date = st.date_input("Active Date", value=curr_date)
             with c2: new_open = st.time_input("Open Time", value=curr_open)
             with c3: new_close = st.time_input("Close Time", value=curr_close)
             
-            # --- FORCE OPEN TOGGLE ---
-            st.write("### 🚨 Emergency Control")
-            new_force = st.checkbox("Force Shop Open (Ignore Time)", value=force_open_state, help="Check this to allow orders 24/7 regardless of set hours.")
+            st.write("### 🚨 Shop Status Override")
+            new_mode = st.radio(
+                "Select Mode:", 
+                ["auto", "open", "closed"], 
+                index=["auto", "open", "closed"].index(curr_mode),
+                format_func=lambda x: {
+                    "auto": "🕒 Auto (Follows Time)", 
+                    "open": "🟢 Force OPEN (24/7)", 
+                    "closed": "🔴 Force CLOSED (Stop Orders)"
+                }[x],
+                horizontal=True
+            )
             
             if st.button("💾 Save Settings", type="primary", width="stretch"):
-                save_config(new_date, new_open, new_close, new_force)
+                save_config(new_date, new_open, new_close, new_mode)
                 st.success("✅ Settings Updated!")
                 time.sleep(1); st.rerun()
             
@@ -506,8 +528,13 @@ elif app_mode == "🔐 Owner Login":
             disp_open_c = format_to_12hr(curr_config['open_time'])
             disp_close_c = format_to_12hr(curr_config['close_time'])
             
-            status_text = "🟢 FORCED OPEN" if force_open_state else "🕒 Follows Time"
-            st.caption(f"📂 File: `orders_{p_year}_week{p_week}.json` | {status_text}")
+            status_text = {
+                "auto": f"🕒 Time Based ({disp_close_c})",
+                "open": "🟢 Forced OPEN",
+                "closed": "🔴 Forced CLOSED"
+            }[curr_mode]
+            
+            st.caption(f"📂 File: `orders_{p_year}_week{p_week}.json` | Status: {status_text}")
 
         if st.button("🔄 Refresh Data"): st.rerun()
         
@@ -610,9 +637,10 @@ elif app_mode == "🔐 Owner Login":
             * **Active Date:** Tetapkan tarikh hari ini (Menu akan dipaparkan untuk tarikh ini).
             * **Open Time:** Hanya untuk paparan pelanggan (pukul berapa mula berniaga).
             * **Close Time:** Masa sistem akan **tutup automatik**. Selepas masa ini, pelanggan tidak boleh order.
-            * **🚨 Force Shop Open (Emergency):**
-                * Jika kotak ini **ditanda (Tick ✅)**: Kedai akan **sentiasa BUKA** 24 jam (mengabaikan jam tutup).
-                * Jika **tidak ditanda**: Kedai akan ikut waktu "Close Time".
+            * **🚨 Shop Status Override (Emergency):**
+                * **🕒 Auto:** Kedai ikut jam "Close Time".
+                * **🟢 Force OPEN:** Kedai BUKA 24 jam (hiraukan masa).
+                * **🔴 Force CLOSED:** Kedai TUTUP serta-merta (hiraukan masa).
             * **Butang 💾 Save Settings:** Wajib tekan selepas ubah apa-apa tetapan.
 
             ---
