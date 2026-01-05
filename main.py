@@ -11,6 +11,7 @@ from io import BytesIO
 from dropbox.exceptions import ApiError
 import textwrap
 from urllib.parse import quote
+import base64  # Added for image processing
 
 # --- 1. CONFIG & BRANDING ---
 st.set_page_config(
@@ -34,17 +35,6 @@ st.markdown("""
     .block-container {
         padding-top: 2rem !important;
         padding-bottom: 2rem !important;
-    }
-    div[data-testid="stImage"] {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        width: 100%;
-        margin: 0 auto;
-    }
-    div[data-testid="stImage"] > img {
-        object-fit: contain;
-        max-width: 100%;
     }
     .metric-card {
         background-color: #FFF8E1;
@@ -141,13 +131,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- HEADER LOGO ---
-if os.path.exists("street_vibes.png"):
-    # Removed columns to allow CSS flexbox to center it perfectly
-    st.image("street_vibes.png", width=220)
-else:
-    st.markdown("<h1 style='text-align: center;'>🍜 Malaysian Street Vibes</h1>", unsafe_allow_html=True)
-
 # --- 2. DROPBOX CONNECTION ---
 try:
     dbx = dropbox.Dropbox(
@@ -160,6 +143,12 @@ except Exception as e:
     st.stop()
 
 # --- 3. HELPER FUNCTIONS ---
+def get_base64_image(image_path):
+    try:
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    except: return None
+
 def load_data(filename, default):
     try:
         _, res = dbx.files_download(f"/{filename}")
@@ -219,8 +208,12 @@ def format_to_12hr(t_input):
     except: return str(t_input)
 
 def is_shop_open():
-    # REMOVED ADMIN OVERRIDE FOR TRUE MANUAL CONTROL
+    # Admin is always open for testing
+    if st.session_state.get('authenticated', False):
+        return True
+
     config = get_config()
+    # Manual Check Only
     return config.get("status") == "open"
 
 def get_file_metadata(filename):
@@ -310,10 +303,22 @@ def generate_png_image(df):
     plt.close(fig)
     return buf
 
-# --- 4. NAVIGATION ---
+# --- HEADER LOGO (HTML INJECTION FOR PERFECT CENTERING) ---
 if os.path.exists("street_vibes.png"):
-    st.sidebar.image("street_vibes.png", width=100)
+    img_b64 = get_base64_image("street_vibes.png")
+    if img_b64:
+        st.markdown(
+            f"""
+            <div style="display: flex; justify-content: center; margin-bottom: 20px;">
+                <img src="data:image/png;base64,{img_b64}" width="220" style="max-width: 100%;">
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+else:
+    st.markdown("<h1 style='text-align: center;'>🍜 Malaysian Street Vibes</h1>", unsafe_allow_html=True)
 
+# --- 4. NAVIGATION ---
 st.sidebar.title("App Mode")
 app_mode = st.sidebar.radio("Select Mode:", ["🍽️ Customer Menu", "🔐 Owner Login", "🔄 Device Sync"])
 
