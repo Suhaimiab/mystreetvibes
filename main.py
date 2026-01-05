@@ -219,12 +219,8 @@ def format_to_12hr(t_input):
     except: return str(t_input)
 
 def is_shop_open():
-    # Admin is always open for testing
-    if st.session_state.get('authenticated', False):
-        return True
-
+    # REMOVED ADMIN OVERRIDE FOR TRUE MANUAL CONTROL
     config = get_config()
-    # Manual Check Only
     return config.get("status") == "open"
 
 def get_file_metadata(filename):
