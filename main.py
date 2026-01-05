@@ -32,20 +32,19 @@ KITCHEN_HOTLINE = "+96879144711"
 st.markdown("""
     <style>
     .block-container {
-        padding-top: 6rem !important;
+        padding-top: 2rem !important;
         padding-bottom: 2rem !important;
     }
     div[data-testid="stImage"] {
-        display: block;
-        margin-left: auto;
-        margin-right: auto;
+        display: flex;
+        justify-content: center;
+        align-items: center;
         width: 100%;
-        text-align: center;
+        margin: 0 auto;
     }
     div[data-testid="stImage"] > img {
-        display: block;
-        margin-left: auto;
-        margin-right: auto;
+        object-fit: contain;
+        max-width: 100%;
     }
     .metric-card {
         background-color: #FFF8E1;
@@ -85,13 +84,14 @@ st.markdown("""
     }
     .sync-online { background-color: #E8F5E9; border-color: #4CAF50; color: #1B5E20; }
     .sync-offline { background-color: #FFEBEE; border-color: #F44336; color: #B71C1C; }
+    
     .shop-info {
-        background-color: #E3F2FD;
-        color: #0D47A1;
+        background-color: #E8F5E9;
+        color: #1B5E20;
         padding: 15px;
         text-align: center;
         border-radius: 10px;
-        border: 2px solid #2196F3;
+        border: 2px solid #4CAF50;
         font-weight: bold;
         font-size: 1em;
         margin-bottom: 15px;
@@ -99,7 +99,13 @@ st.markdown("""
     .shop-closed {
         background-color: #FFEBEE;
         color: #B71C1C;
+        padding: 15px;
+        text-align: center;
+        border-radius: 10px;
         border: 2px solid #F44336;
+        font-weight: bold;
+        font-size: 1em;
+        margin-bottom: 15px;
     }
     .welcome-container {
         text-align: center;
@@ -137,9 +143,10 @@ st.markdown("""
 
 # --- HEADER LOGO ---
 if os.path.exists("street_vibes.png"):
-    c1, c2, c3 = st.columns([1, 2, 1])
-    with c2: st.image("street_vibes.png", width=220)
-else: st.markdown("<h1 style='text-align: center;'>🍜 Malaysian Street Vibes</h1>", unsafe_allow_html=True)
+    # Removed columns to allow CSS flexbox to center it perfectly
+    st.image("street_vibes.png", width=220)
+else:
+    st.markdown("<h1 style='text-align: center;'>🍜 Malaysian Street Vibes</h1>", unsafe_allow_html=True)
 
 # --- 2. DROPBOX CONNECTION ---
 try:
@@ -178,18 +185,18 @@ def delete_dropbox_file(filename):
 def get_config():
     defaults = {
         "active_date": datetime.now(OMAN_TZ).strftime("%Y-%m-%d"),
-        "open_time": "12:00 PM",
-        "close_time": "11:59 PM",
-        "shop_mode": "auto" # Values: 'auto', 'open', 'closed'
+        "open_time": "10:00 AM",
+        "close_time": "08:00 PM",
+        "status": "open" 
     }
     return load_data("config.json", defaults)
 
-def save_config(date_obj, start_t, end_t, mode):
+def save_config(date_obj, start_t, end_t, status_str):
     config = {
         "active_date": date_obj.strftime("%Y-%m-%d"),
         "open_time": start_t.strftime("%I:%M %p"),
         "close_time": end_t.strftime("%I:%M %p"),
-        "shop_mode": mode
+        "status": status_str
     }
     save_data("config.json", config)
 
@@ -212,30 +219,13 @@ def format_to_12hr(t_input):
     except: return str(t_input)
 
 def is_shop_open():
+    # Admin is always open for testing
+    if st.session_state.get('authenticated', False):
+        return True
+
     config = get_config()
-    mode = config.get("shop_mode", "auto")
-    
-    # 1. Manual Overrides
-    if mode == "open": return True
-    if mode == "closed": return False
-
-    # 2. Auto (Time Based) Logic
-    active_date_str = config['active_date']
-    now = datetime.now(OMAN_TZ)
-    
-    # Date check
-    if now.strftime("%Y-%m-%d") != active_date_str:
-        return False 
-
-    # Time check
-    try:
-        end = datetime.strptime(config["close_time"], "%I:%M %p").time()
-    except ValueError:
-        try:
-            end = datetime.strptime(config["close_time"], "%H:%M").time()
-        except: return True
-        
-    return now.time() <= end
+    # Manual Check Only
+    return config.get("status") == "open"
 
 def get_file_metadata(filename):
     try:
@@ -343,40 +333,42 @@ if app_mode == "🍽️ Customer Menu":
     shop_open = is_shop_open()
     config = get_config()
     
-    # Determine Banner Logic
-    now_time_str = datetime.now(OMAN_TZ).strftime("%I:%M %p")
-    banner_class = "shop-info"
-    banner_msg = ""
+    # --- 1. CONFIG INFO (ALWAYS AVAILABLE) ---
+    try:
+        d_obj = datetime.strptime(config['active_date'], "%Y-%m-%d")
+        nice_date = d_obj.strftime("%A, %d %b %Y")
+    except: nice_date = config['active_date']
     
-    if config.get('shop_mode') == 'closed':
-        banner_class = "shop-info shop-closed"
-        banner_msg = "⛔ <b>WE ARE CURRENTLY CLOSED (Stopped)</b><br>Please check back later."
-    elif not shop_open:
-        try:
-            d_obj = datetime.strptime(config['active_date'], "%Y-%m-%d")
-            nice_date = d_obj.strftime("%A, %d %b %Y")
-        except: nice_date = config['active_date']
-        banner_msg = f"ℹ️ Shop is open on <b>{nice_date}</b><br>until <b>{format_to_12hr(config['close_time'])}</b><br><span style='font-size:0.8em; color: #555;'>(Current Time: {now_time_str})</span>"
-    
-    # Display Banner if closed or forced closed
-    if not shop_open:
-        st.markdown(f"""<div class="{banner_class}">{banner_msg}</div>""", unsafe_allow_html=True)
+    disp_open = format_to_12hr(config.get('open_time', '10:00 AM'))
+    disp_close = format_to_12hr(config.get('close_time', '08:00 PM'))
 
-    if st.session_state.order_step == 'menu':
-        try:
-            d_obj = datetime.strptime(config['active_date'], "%Y-%m-%d")
-            nice_date_str = d_obj.strftime("%A, %d %b %Y")
-        except: nice_date_str = config['active_date']
+    # --- 2. WELCOME BANNER (ALWAYS SHOWS TIME INFO) ---
+    st.markdown(f"""
+    <div class="welcome-container">
+        <div class="welcome-title">Welcome to Malaysian Street Vibes</div>
+        <div class="welcome-text">We are serving you popular and mouth-watering Malaysian delicacies in the City of Muscat, Oman.<br>Enjoy Malaysian hospitality at its very best.</div>
+        <div class="welcome-time">See you all on {nice_date}<br>from {disp_open} to {disp_close}</div>
+        <div class="welcome-loc">📍 Location: Orange Pearl Tea, Azaiba</div>
+    </div>
+    """, unsafe_allow_html=True)
 
+    # --- 3. STATUS BANNER (DEPENDS ON TOGGLE) ---
+    if shop_open:
         st.markdown(f"""
-        <div class="welcome-container">
-            <div class="welcome-title">Welcome to Malaysian Street Vibes</div>
-            <div class="welcome-text">We are serving you popular and mouth-watering Malaysian delicacies in the City of Muscat, Oman.<br>Enjoy Malaysian hospitality at its very best.</div>
-            <div class="welcome-time">See you all on {nice_date_str}<br>from {format_to_12hr(config['open_time'])} to {format_to_12hr(config['close_time'])}</div>
-            <div class="welcome-loc">📍 Location: Orange Pearl Tea, Azaiba</div>
+        <div class="shop-info">
+            ✅ <b>WE ARE OPEN!</b><br>
+            Taking orders for: {nice_date}
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown(f"""
+        <div class="shop-closed">
+            ⛔ <b>WE ARE CURRENTLY CLOSED</b><br>
+            Please check back later.
         </div>
         """, unsafe_allow_html=True)
 
+    if st.session_state.order_step == 'menu':
         with st.expander("ℹ️ How to Order / Cara Memesan"):
             st.markdown("1. **Select Food**\n2. **Check Cart**\n3. **Review**\n4. **Submit**")
         
@@ -450,14 +442,12 @@ if app_mode == "🍽️ Customer Menu":
         st.title("✅ Order Received!")
         st.markdown("### Thank you for your order.")
         
-        disp_open = format_to_12hr(config['open_time'])
-        disp_close = format_to_12hr(config['close_time'])
         try:
             d_obj = datetime.strptime(config['active_date'], "%Y-%m-%d")
             nice_date = d_obj.strftime("%A, %d %b %Y")
         except: nice_date = config['active_date']
             
-        st.markdown(f"We look forward to serving you at **Orange Pearl Tea** on **{nice_date}** from **{disp_open}** to **{disp_close}**!")
+        st.markdown(f"We look forward to serving you at **Orange Pearl Tea** on **{nice_date}**!")
         st.info("Sent to Food Processing Team!")
         
         if st.session_state.last_order:
@@ -485,9 +475,11 @@ elif app_mode == "🔐 Owner Login":
     if st.session_state.get('authenticated', False):
         st.title("📊 Towkay Dashboard")
         
-        with st.expander("⚙️ Admin Settings (Date, Time & Status)"):
-            st.info("Configure operating details.")
+        # --- EXPANDED=TRUE FORCES THIS OPEN ---
+        with st.expander("⚙️ Admin Settings (Status & Info)", expanded=True):
+            st.info("Manually Open or Close the Shop. Set times for display only.")
             
+            # PARSE CONFIG TIMES
             def parse_time_config(t_str):
                 try: return datetime.strptime(t_str, "%I:%M %p").time()
                 except: 
@@ -496,44 +488,34 @@ elif app_mode == "🔐 Owner Login":
 
             curr_config = get_config()
             curr_date = datetime.strptime(curr_config["active_date"], "%Y-%m-%d")
-            curr_open = parse_time_config(curr_config["open_time"])
-            curr_close = parse_time_config(curr_config["close_time"])
-            curr_mode = curr_config.get("shop_mode", "auto")
+            curr_status = curr_config.get("status", "open")
+            curr_open = parse_time_config(curr_config.get("open_time", "12:00 PM"))
+            curr_close = parse_time_config(curr_config.get("close_time", "11:59 PM"))
             
-            c1, c2, c3 = st.columns(3)
-            with c1: new_date = st.date_input("Active Date", value=curr_date)
-            with c2: new_open = st.time_input("Open Time", value=curr_open)
-            with c3: new_close = st.time_input("Close Time", value=curr_close)
+            c1, c2 = st.columns(2)
+            with c1: 
+                st.write("#### Current Shop Status:")
+                new_status = st.radio("Status:", ["open", "closed"], 
+                                      index=0 if curr_status=="open" else 1,
+                                      format_func=lambda x: "🟢 OPEN SHOP" if x=="open" else "🔴 CLOSE SHOP",
+                                      horizontal=True)
+            with c2: 
+                new_date = st.date_input("Active Date", value=curr_date)
             
-            st.write("### 🚨 Shop Status Override")
-            new_mode = st.radio(
-                "Select Mode:", 
-                ["auto", "open", "closed"], 
-                index=["auto", "open", "closed"].index(curr_mode),
-                format_func=lambda x: {
-                    "auto": "🕒 Auto (Follows Time)", 
-                    "open": "🟢 Force OPEN (24/7)", 
-                    "closed": "🔴 Force CLOSED (Stop Orders)"
-                }[x],
-                horizontal=True
-            )
-            
+            st.divider()
+            st.write("**Display Time (For Customer Info Only):**")
+            t_col1, t_col2 = st.columns(2)
+            with t_col1: new_open = st.time_input("Open Time", value=curr_open)
+            with t_col2: new_close = st.time_input("Close Time", value=curr_close)
+
             if st.button("💾 Save Settings", type="primary", width="stretch"):
-                save_config(new_date, new_open, new_close, new_mode)
-                st.success("✅ Settings Updated!")
+                save_config(new_date, new_open, new_close, new_status)
+                st.success(f"Updated! Shop is now {new_status.upper()}")
                 time.sleep(1); st.rerun()
             
             p_year = new_date.strftime("%Y")
             p_week = new_date.strftime("%U")
-            disp_open_c = format_to_12hr(curr_config['open_time'])
-            disp_close_c = format_to_12hr(curr_config['close_time'])
-            
-            status_text = {
-                "auto": f"🕒 Time Based ({disp_close_c})",
-                "open": "🟢 Forced OPEN",
-                "closed": "🔴 Forced CLOSED"
-            }[curr_mode]
-            
+            status_text = "🟢 OPEN" if curr_status == "open" else "🔴 CLOSED"
             st.caption(f"📂 File: `orders_{p_year}_week{p_week}.json` | Status: {status_text}")
 
         if st.button("🔄 Refresh Data"): st.rerun()
@@ -635,12 +617,9 @@ elif app_mode == "🔐 Owner Login":
             Di sinilah anda menetapkan waktu perniagaan.
 
             * **Active Date:** Tetapkan tarikh hari ini (Menu akan dipaparkan untuk tarikh ini).
-            * **Open Time:** Hanya untuk paparan pelanggan (pukul berapa mula berniaga).
-            * **Close Time:** Masa sistem akan **tutup automatik**. Selepas masa ini, pelanggan tidak boleh order.
-            * **🚨 Shop Status Override (Emergency):**
-                * **🕒 Auto:** Kedai ikut jam "Close Time".
-                * **🟢 Force OPEN:** Kedai BUKA 24 jam (hiraukan masa).
-                * **🔴 Force CLOSED:** Kedai TUTUP serta-merta (hiraukan masa).
+            * **Status Kedai:**
+                * 🟢 **OPEN SHOP:** Pelanggan boleh order.
+                * 🔴 **CLOSE SHOP:** Pelanggan tidak boleh order.
             * **Butang 💾 Save Settings:** Wajib tekan selepas ubah apa-apa tetapan.
 
             ---
