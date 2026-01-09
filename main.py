@@ -11,7 +11,7 @@ from io import BytesIO
 from dropbox.exceptions import ApiError
 import textwrap
 from urllib.parse import quote
-import base64  # Added for image processing
+import base64
 
 # --- 1. CONFIG & BRANDING ---
 st.set_page_config(
@@ -28,6 +28,14 @@ OMAN_TZ = timezone(timedelta(hours=4))
 
 # --- HARDCODED WHATSAPP NUMBER ---
 KITCHEN_HOTLINE = "+96879144711"
+
+# --- IMAGE MAPPING ---
+MENU_IMAGES = {
+    "Nasi Lemak": "images/nasi_lemak.jpg",
+    "Mee Goreng": "images/mee_goreng.jpg",
+    "Teh Tarik": "images/teh_tarik.jpg",
+    "Nasi Ayam Masak Merah": "images/nasi_ayam.jpg"
+}
 
 # CSS Styling
 st.markdown("""
@@ -54,82 +62,43 @@ st.markdown("""
         color: white !important;
         border: none !important;
     }
-    .stButton>button[kind="primary"]:active {
-        background-color: #3E2723 !important;
-    }
     .stButton>button[kind="secondary"] {
         background-color: #EFEBE9 !important;
         color: #5D4037 !important;
         border: 1px solid #D7CCC8 !important;
     }
-    .stButton>button[kind="secondary"]:active {
-        background-color: #A1887F !important;
-        color: white !important;
-    }
-    .sync-box {
-        padding: 15px;
-        border-radius: 8px;
-        margin-bottom: 20px;
-        border-left: 5px solid #ccc;
-    }
-    .sync-online { background-color: #E8F5E9; border-color: #4CAF50; color: #1B5E20; }
-    .sync-offline { background-color: #FFEBEE; border-color: #F44336; color: #B71C1C; }
+    .shop-info { background-color: #E8F5E9; color: #1B5E20; padding: 15px; border-radius: 10px; border: 2px solid #4CAF50; text-align: center; font-weight: bold; margin-bottom: 15px; }
+    .shop-closed { background-color: #FFEBEE; color: #B71C1C; padding: 15px; border-radius: 10px; border: 2px solid #F44336; text-align: center; font-weight: bold; margin-bottom: 15px; }
+    .welcome-container { text-align: center; margin-bottom: 15px; padding: 10px; background-color: #FAFAFA; border-radius: 10px; border-bottom: 2px solid #5D4037; }
+    .welcome-title { color: #5D4037; font-size: 1.3em; font-weight: bold; margin-bottom: 5px; }
+    .welcome-text { color: #555; font-size: 0.9em; margin-bottom: 8px; }
+    .welcome-time { color: #1565C0; font-weight: bold; margin-bottom: 5px; }
+    .welcome-loc { color: #E65100; font-weight: bold; font-size: 0.9em; }
+    img.menu-img { border-radius: 10px; object-fit: cover; }
     
-    .shop-info {
-        background-color: #E8F5E9;
-        color: #1B5E20;
-        padding: 15px;
+    /* Sold Out Badge Styling */
+    .sold-out-badge {
+        background-color: #ffebee;
+        color: #c62828;
+        border: 1px solid #c62828;
+        padding: 5px 10px;
+        border-radius: 5px;
+        font-weight: bold;
         text-align: center;
-        border-radius: 10px;
-        border: 2px solid #4CAF50;
-        font-weight: bold;
-        font-size: 1em;
-        margin-bottom: 15px;
-    }
-    .shop-closed {
-        background-color: #FFEBEE;
-        color: #B71C1C;
-        padding: 15px;
-        text-align: center;
-        border-radius: 10px;
-        border: 2px solid #F44336;
-        font-weight: bold;
-        font-size: 1em;
-        margin-bottom: 15px;
-    }
-    .welcome-container {
-        text-align: center;
-        margin-bottom: 15px;
-        padding: 10px;
-        background-color: #FAFAFA;
-        border-radius: 10px;
-        border-bottom: 2px solid #5D4037;
-    }
-    .welcome-title {
-        color: #5D4037;
-        font-size: 1.3em;
-        font-weight: bold;
-        margin-bottom: 5px;
-    }
-    .welcome-text {
-        color: #555;
-        font-size: 0.9em;
-        line-height: 1.4;
-        margin-bottom: 8px;
-    }
-    .welcome-time {
-        color: #1565C0;
-        font-weight: bold;
-        font-size: 1em;
-        margin-bottom: 5px;
-    }
-    .welcome-loc {
-        color: #E65100;
-        font-weight: bold;
-        font-size: 0.9em;
+        display: inline-block;
+        width: 100%;
     }
     </style>
 """, unsafe_allow_html=True)
+
+# --- HEADER LOGO ---
+if os.path.exists("street_vibes.png"):
+    try:
+        with open("street_vibes.png", "rb") as f:
+            img_b64 = base64.b64encode(f.read()).decode()
+        st.markdown(f'<div style="display: flex; justify-content: center; margin-bottom: 20px;"><img src="data:image/png;base64,{img_b64}" width="220"></div>', unsafe_allow_html=True)
+    except: st.markdown("<h1 style='text-align: center;'>🍜 Malaysian Street Vibes</h1>", unsafe_allow_html=True)
+else: st.markdown("<h1 style='text-align: center;'>🍜 Malaysian Street Vibes</h1>", unsafe_allow_html=True)
 
 # --- 2. DROPBOX CONNECTION ---
 try:
@@ -138,17 +107,11 @@ try:
         app_secret=st.secrets["dropbox"]["app_secret"],
         oauth2_refresh_token=st.secrets["dropbox"]["refresh_token"]
     )
-except Exception as e:
-    st.error("System Offline. Please contact staff.")
+except: 
+    st.error("System Offline.")
     st.stop()
 
 # --- 3. HELPER FUNCTIONS ---
-def get_base64_image(image_path):
-    try:
-        with open(image_path, "rb") as img_file:
-            return base64.b64encode(img_file.read()).decode()
-    except: return None
-
 def load_data(filename, default):
     try:
         _, res = dbx.files_download(f"/{filename}")
@@ -164,159 +127,73 @@ def delete_order(filename, order_id):
     new_data = [d for d in data if d.get('id') != order_id]
     save_data(filename, new_data)
 
+def mark_order_fulfilled(filename, order_id):
+    data = load_data(filename, [])
+    for d in data:
+        if d.get('id') == order_id:
+            d['status'] = 'Khalas'
+    save_data(filename, data)
+
 def delete_dropbox_file(filename):
-    try:
-        dbx.files_delete_v2(f"/{filename}")
-        return True
+    try: dbx.files_delete_v2(f"/{filename}"); return True
     except: return False
 
 # --- CONFIG & TIME MANAGEMENT ---
 def get_config():
-    defaults = {
-        "active_date": datetime.now(OMAN_TZ).strftime("%Y-%m-%d"),
-        "open_time": "10:00 AM",
-        "close_time": "08:00 PM",
-        "status": "open" 
-    }
+    defaults = { "active_date": datetime.now(OMAN_TZ).strftime("%Y-%m-%d"), "open_time": "10:00 AM", "close_time": "08:00 PM", "status": "open" }
     return load_data("config.json", defaults)
 
 def save_config(date_obj, start_t, end_t, status_str):
-    config = {
-        "active_date": date_obj.strftime("%Y-%m-%d"),
-        "open_time": start_t.strftime("%I:%M %p"),
-        "close_time": end_t.strftime("%I:%M %p"),
-        "status": status_str
-    }
+    config = { "active_date": date_obj.strftime("%Y-%m-%d"), "open_time": start_t.strftime("%I:%M %p"), "close_time": end_t.strftime("%I:%M %p"), "status": status_str }
     save_data("config.json", config)
 
 def get_active_week_filename():
     config = get_config()
     date_obj = datetime.strptime(config["active_date"], "%Y-%m-%d")
-    year = date_obj.strftime("%Y")
-    week = date_obj.strftime("%U")
-    return f"orders_{year}_week{week}.json"
+    return f"orders_{date_obj.strftime('%Y')}_week{date_obj.strftime('%U')}.json"
 
 def format_to_12hr(t_input):
     try:
         if isinstance(t_input, dt_time): return t_input.strftime("%I:%M %p")
-        try:
-            t_obj = datetime.strptime(str(t_input), "%H:%M").time()
-            return t_obj.strftime("%I:%M %p")
-        except ValueError: pass
-        datetime.strptime(str(t_input), "%I:%M %p")
-        return str(t_input)
+        datetime.strptime(str(t_input), "%I:%M %p"); return str(t_input)
     except: return str(t_input)
 
 def is_shop_open():
-    # Admin is always open for testing
-    if st.session_state.get('authenticated', False):
-        return True
-
-    config = get_config()
-    # Manual Check Only
-    return config.get("status") == "open"
+    # --- STRICT MANUAL CONTROL ---
+    return get_config().get("status") == "open"
 
 def get_file_metadata(filename):
-    try:
-        md = dbx.files_get_metadata(f"/{filename}")
-        return md.server_modified
+    try: return dbx.files_get_metadata(f"/{filename}").server_modified
     except: return None
 
 def list_dropbox_files():
-    try:
-        res = dbx.files_list_folder('')
-        return [entry.name for entry in res.entries]
+    try: return [entry.name for entry in dbx.files_list_folder('').entries]
     except: return []
 
 # --- WHATSAPP HELPER ---
 def generate_whatsapp_link(number, order_data):
     if not number: return None
     clean_num = ''.join(filter(str.isdigit, number))
-    items_list = ""
-    for item in order_data['items']:
-        items_list += f"• {item['qty']}x {item['item']}\n"
-    msg = f"""*New Order!* 🍜
-Customer: *{order_data['customer']}*
-Time: {order_data['time']}
-
-*Items:*
-{items_list}
-*Total: OMR {order_data['total']:.3f}*"""
+    items_list = "".join([f"• {item['qty']}x {item['item']}\n" for item in order_data['items']])
+    msg = f"*New Order!* 🍜\nCustomer: *{order_data['customer']}*\nTime: {order_data['time']}\n\n*Items:*\n{items_list}*Total: OMR {order_data['total']:.3f}*"
     return f"https://api.whatsapp.com/send?phone={clean_num}&text={quote(msg)}"
 
 # --- EXPORT FUNCTIONS ---
 def generate_combined_html(df_cust, df_items, date_str):
-    total_revenue = df_cust['Total'].str.replace('OMR ', '').astype(float).sum()
-    html = f"""
-    <html>
-    <head>
-        <style>
-            body {{ font-family: Arial, sans-serif; background-color: #FFF8E1; padding: 20px; color: #333; }}
-            .header {{ text-align: center; color: #5D4037; border-bottom: 3px solid #5D4037; padding-bottom: 10px; margin-bottom: 20px; }}
-            h1 {{ margin: 0; }}
-            h2 {{ color: #5D4037; border-left: 5px solid #5D4037; padding-left: 10px; margin-top: 30px; }}
-            table {{ width: 100%; border-collapse: collapse; margin-top: 10px; background-color: white; }}
-            th {{ background-color: #5D4037; color: white; padding: 12px; text-align: left; }}
-            td {{ padding: 10px; border-bottom: 1px solid #ddd; vertical-align: top; }}
-            tr:nth-child(even) {{ background-color: #f9f9f9; }}
-            .footer {{ margin-top: 30px; text-align: right; font-size: 1.5em; font-weight: bold; color: #5D4037; background-color: #EFEBE9; padding: 10px; }}
-        </style>
-    </head>
-    <body>
-        <div class="header">
-            <h1>🍜 Malaysian Street Vibes</h1>
-            <div>Combined Sales Report: {date_str}</div>
-        </div>
-        <h2>🔥 Sales by Dish (Summary)</h2>
-        {df_items.to_html(index=False, border=0)}
-        <h2>📋 Customer Transactions (Detail)</h2>
-        {df_cust.to_html(index=False, border=0)}
-        <div class="footer">Grand Total Revenue: OMR {total_revenue:.3f}</div>
-    </body>
-    </html>
-    """
-    return html
+    total = df_cust['Total'].str.replace('OMR ', '').astype(float).sum()
+    return f"""<html><body><h1 style='color:#5D4037; text-align:center'>🍜 Sales Report: {date_str}</h1><h2>🔥 By Dish</h2>{df_items.to_html(index=False)}<h2>📋 Details</h2>{df_cust.to_html(index=False)}<h3 style='text-align:right'>Total: OMR {total:.3f}</h3></body></html>"""
 
 def generate_png_image(df):
     plot_df = df.copy()
-    def wrap_text(text, width=40):
-        return "\n".join(textwrap.wrap(text, width))
-    if 'Items' in plot_df.columns:
-        plot_df['Items'] = plot_df['Items'].apply(lambda x: wrap_text(str(x)))
-    rows = len(plot_df)
-    h = max(4, rows * 0.8 + 2) 
-    fig, ax = plt.subplots(figsize=(14, h)) 
-    ax.axis('off')
+    plot_df['Items'] = plot_df['Items'].apply(lambda x: "\n".join(textwrap.wrap(str(x), 40)))
+    h = max(4, len(plot_df) * 0.8 + 2)
+    fig, ax = plt.subplots(figsize=(14, h)); ax.axis('off')
     tbl = table(ax, plot_df, loc='center', cellLoc='left')
-    tbl.auto_set_font_size(False)
-    tbl.set_fontsize(11)
-    tbl.scale(1.2, 2.0) 
+    tbl.auto_set_font_size(False); tbl.set_fontsize(11); tbl.scale(1.2, 2.0)
     for (row, col), cell in tbl.get_celld().items():
-        if row == 0:
-            cell.set_text_props(weight='bold', color='white')
-            cell.set_facecolor('#5D4037')
-        else:
-            cell.set_facecolor('#FFF8E1')
-    plt.title("Malaysian Street Vibes - Transaction Log", fontsize=16, weight='bold', color='#5D4037', pad=20)
-    buf = BytesIO()
-    plt.savefig(buf, format="png", bbox_inches='tight', dpi=150)
-    plt.close(fig)
-    return buf
-
-# --- HEADER LOGO (HTML INJECTION FOR PERFECT CENTERING) ---
-if os.path.exists("street_vibes.png"):
-    img_b64 = get_base64_image("street_vibes.png")
-    if img_b64:
-        st.markdown(
-            f"""
-            <div style="display: flex; justify-content: center; margin-bottom: 20px;">
-                <img src="data:image/png;base64,{img_b64}" width="220" style="max-width: 100%;">
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-else:
-    st.markdown("<h1 style='text-align: center;'>🍜 Malaysian Street Vibes</h1>", unsafe_allow_html=True)
+        cell.set_facecolor('#5D4037' if row==0 else '#FFF8E1')
+        if row==0: cell.set_text_props(weight='bold', color='white')
+    plt.title("Transaction Log", fontsize=16, weight='bold', color='#5D4037'); buf = BytesIO(); plt.savefig(buf, format="png", bbox_inches='tight', dpi=150); plt.close(fig); return buf
 
 # --- 4. NAVIGATION ---
 st.sidebar.title("App Mode")
@@ -334,16 +211,12 @@ if app_mode == "🍽️ Customer Menu":
     shop_open = is_shop_open()
     config = get_config()
     
-    # --- 1. CONFIG INFO (ALWAYS AVAILABLE) ---
-    try:
-        d_obj = datetime.strptime(config['active_date'], "%Y-%m-%d")
-        nice_date = d_obj.strftime("%A, %d %b %Y")
+    try: nice_date = datetime.strptime(config['active_date'], "%Y-%m-%d").strftime("%A, %d %b %Y")
     except: nice_date = config['active_date']
     
     disp_open = format_to_12hr(config.get('open_time', '10:00 AM'))
     disp_close = format_to_12hr(config.get('close_time', '08:00 PM'))
 
-    # --- 2. WELCOME BANNER (ALWAYS SHOWS TIME INFO) ---
     st.markdown(f"""
     <div class="welcome-container">
         <div class="welcome-title">Welcome to Malaysian Street Vibes</div>
@@ -353,42 +226,54 @@ if app_mode == "🍽️ Customer Menu":
     </div>
     """, unsafe_allow_html=True)
 
-    # --- 3. STATUS BANNER (DEPENDS ON TOGGLE) ---
     if shop_open:
-        st.markdown(f"""
-        <div class="shop-info">
-            ✅ <b>WE ARE OPEN!</b><br>
-            Taking orders for: {nice_date}
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f'<div class="shop-info">✅ <b>WE ARE OPEN!</b><br>Taking orders for: {nice_date}</div>', unsafe_allow_html=True)
     else:
-        st.markdown(f"""
-        <div class="shop-closed">
-            ⛔ <b>WE ARE CURRENTLY CLOSED</b><br>
-            Please check back later.
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown('<div class="shop-closed">⛔ <b>WE ARE CURRENTLY CLOSED</b><br>Please check back later.</div>', unsafe_allow_html=True)
 
     if st.session_state.order_step == 'menu':
         with st.expander("ℹ️ How to Order / Cara Memesan"):
             st.markdown("1. **Select Food**\n2. **Check Cart**\n3. **Review**\n4. **Submit**")
         
         menu = load_data("menu.json", {"Nasi Lemak": 1.500})
+        sold_out_items = load_data("sold_out.json", []) # Load sold out list
+        
         col1, col2 = st.columns([1.5, 1])
         with col1:
             st.info("🍛 **Menu**")
             for item_name, item_price in menu.items():
-                c1, c2, c3 = st.columns([2, 1, 1])
-                with c1:
+                
+                try: item_price = float(item_price)
+                except: item_price = 0.0
+                
+                is_sold_out = item_name in sold_out_items # Check availability
+                
+                c_img, c_det, c_inp, c_btn = st.columns([1.2, 2, 1, 1])
+                
+                with c_img:
+                    img_path = MENU_IMAGES.get(item_name)
+                    if img_path and os.path.exists(img_path): st.image(img_path, use_container_width=True)
+                    else: st.write("🍲")
+                
+                with c_det:
                     st.write(f"**{item_name}**")
                     st.caption(f"OMR {item_price:.3f}")
-                with c2:
-                    qty = st.number_input("Qty", min_value=1, value=1, key=f"qty_{item_name}", label_visibility="collapsed")
-                with c3:
-                    if st.button("Add", key=f"btn_{item_name}", width="stretch", disabled=not shop_open):
-                        st.session_state.cart.append({"item": item_name, "qty": qty, "price": item_price * qty})
-                        st.toast(f"✅ Added {qty}x {item_name}")
-                st.divider()
+                
+                with c_inp:
+                    if not is_sold_out:
+                        qty = st.number_input("Qty", min_value=1, value=1, key=f"qty_{item_name}", label_visibility="collapsed")
+                    else:
+                        st.write("") # Spacer
+                
+                with c_btn:
+                    if is_sold_out:
+                        st.markdown('<div class="sold-out-badge">SOLD OUT</div>', unsafe_allow_html=True)
+                    else:
+                        if st.button("Add", key=f"btn_{item_name}", disabled=not shop_open):
+                            st.session_state.cart.append({"item": item_name, "qty": qty, "price": item_price * qty})
+                            st.toast(f"✅ Added {qty}x {item_name}")
+                st.write("---")
+                
         with col2:
             st.warning("🛒 **Your Basket**")
             if st.session_state.cart:
@@ -403,8 +288,7 @@ if app_mode == "🍽️ Customer Menu":
                     if not c_name: st.error("Name Required!")
                     else:
                         st.session_state.customer_meta = {"name": c_name, "table": t_no, "total": total}
-                        st.session_state.order_step = 'review'
-                        st.rerun()
+                        st.session_state.order_step = 'review'; st.rerun()
                 if st.button("❌ Clear"): st.session_state.cart = []; st.rerun()
             else: st.info("Basket is empty.")
 
@@ -433,8 +317,7 @@ if app_mode == "🍽️ Customer Menu":
                         "total": meta['total'], 
                         "status": "New"
                     }
-                    orders.append(new_order)
-                    save_data(fn, orders)
+                    orders.append(new_order); save_data(fn, orders)
                     st.session_state.last_order = new_order
                     st.session_state.order_step = 'success'; st.rerun()
 
@@ -442,21 +325,13 @@ if app_mode == "🍽️ Customer Menu":
         st.balloons()
         st.title("✅ Order Received!")
         st.markdown("### Thank you for your order.")
-        
-        try:
-            d_obj = datetime.strptime(config['active_date'], "%Y-%m-%d")
-            nice_date = d_obj.strftime("%A, %d %b %Y")
+        try: nice_date = datetime.strptime(config['active_date'], "%Y-%m-%d").strftime("%A, %d %b %Y")
         except: nice_date = config['active_date']
-            
         st.markdown(f"We look forward to serving you at **Orange Pearl Tea** on **{nice_date}**!")
         st.info("Sent to Food Processing Team!")
-        
         if st.session_state.last_order:
             wa_link = generate_whatsapp_link(KITCHEN_HOTLINE, st.session_state.last_order)
-            if wa_link:
-                st.write("---")
-                st.link_button("📲 Send Order to Kitchen Hotline", wa_link, type="primary", width="stretch")
-        
+            if wa_link: st.write("---"); st.link_button("📲 Send Order to Kitchen Hotline", wa_link, type="primary", width="stretch")
         st.write(""); st.write("")
         if st.button("🏠 New Order", type="primary", width="stretch"):
             st.session_state.cart = []; st.session_state.order_step = 'menu'; st.rerun()
@@ -476,35 +351,25 @@ elif app_mode == "🔐 Owner Login":
     if st.session_state.get('authenticated', False):
         st.title("📊 Towkay Dashboard")
         
-        # --- EXPANDED=TRUE FORCES THIS OPEN ---
         with st.expander("⚙️ Admin Settings (Status & Info)", expanded=True):
             st.info("Manually Open or Close the Shop. Set times for display only.")
-            
-            # PARSE CONFIG TIMES
-            def parse_time_config(t_str):
-                try: return datetime.strptime(t_str, "%I:%M %p").time()
-                except: 
-                    try: return datetime.strptime(t_str, "%H:%M").time()
-                    except: return datetime.now().time()
-
             curr_config = get_config()
             curr_date = datetime.strptime(curr_config["active_date"], "%Y-%m-%d")
-            curr_status = curr_config.get("status", "open")
-            curr_open = parse_time_config(curr_config.get("open_time", "12:00 PM"))
-            curr_close = parse_time_config(curr_config.get("close_time", "11:59 PM"))
+            
+            def parse_time_config(t_str):
+                try: return datetime.strptime(t_str, "%I:%M %p").time()
+                except: return datetime.now().time()
+
+            curr_open = parse_time_config(curr_config.get("open_time", "10:00 AM"))
+            curr_close = parse_time_config(curr_config.get("close_time", "08:00 PM"))
             
             c1, c2 = st.columns(2)
             with c1: 
                 st.write("#### Current Shop Status:")
-                new_status = st.radio("Status:", ["open", "closed"], 
-                                      index=0 if curr_status=="open" else 1,
-                                      format_func=lambda x: "🟢 OPEN SHOP" if x=="open" else "🔴 CLOSE SHOP",
-                                      horizontal=True)
-            with c2: 
-                new_date = st.date_input("Active Date", value=curr_date)
+                new_status = st.radio("Status:", ["open", "closed"], index=0 if curr_config.get("status")=="open" else 1, format_func=lambda x: "🟢 OPEN SHOP" if x=="open" else "🔴 CLOSE SHOP", horizontal=True)
+            with c2: new_date = st.date_input("Active Date", value=curr_date)
             
-            st.divider()
-            st.write("**Display Time (For Customer Info Only):**")
+            st.divider(); st.write("**Display Time (For Customer Info Only):**")
             t_col1, t_col2 = st.columns(2)
             with t_col1: new_open = st.time_input("Open Time", value=curr_open)
             with t_col2: new_close = st.time_input("Close Time", value=curr_close)
@@ -514,16 +379,11 @@ elif app_mode == "🔐 Owner Login":
                 st.success(f"Updated! Shop is now {new_status.upper()}")
                 time.sleep(1); st.rerun()
             
-            p_year = new_date.strftime("%Y")
-            p_week = new_date.strftime("%U")
-            status_text = "🟢 OPEN" if curr_status == "open" else "🔴 CLOSED"
-            st.caption(f"📂 File: `orders_{p_year}_week{p_week}.json` | Status: {status_text}")
+            st.caption(f"📂 File: `orders_{new_date.strftime('%Y')}_week{new_date.strftime('%U')}.json` | Status: {'🟢 OPEN' if new_status == 'open' else '🔴 CLOSED'}")
 
         if st.button("🔄 Refresh Data"): st.rerun()
-        
         s_date = st.date_input("View Reports For:", value=datetime.strptime(curr_config["active_date"], "%Y-%m-%d"))
         t_file_view = f"orders_{s_date.strftime('%Y')}_week{s_date.strftime('%U')}.json"
-        st.caption(f"Viewing File: `{t_file_view}`")
         orders = load_data(t_file_view, [])
 
         t1, t2, t3, t4 = st.tabs(["🔥 Kitchen Live", "💰 Sales", "🛠️ Menu", "📖 Panduan"])
@@ -532,13 +392,27 @@ elif app_mode == "🔐 Owner Login":
             st.subheader("Incoming Orders")
             if orders:
                 for o in reversed(orders):
-                    with st.expander(f"🕒 {o['time']} - {o['customer']} (OMR {o['total']:.3f})", expanded=True):
+                    # KHALAS LOGIC
+                    is_khalas = o.get('status') == 'Khalas'
+                    status_icon = "✅" if is_khalas else "🔥"
+                    status_label = "(Fulfilled)" if is_khalas else ""
+                    
+                    with st.expander(f"{status_icon} {o['time']} - {o['customer']} {status_label}", expanded=not is_khalas):
                         st.write(f"**Items:** {o.get('item_summary', '')}")
-                        if st.button("❌ Delete Order", key=f"del_{o['id']}"):
-                            delete_order(t_file_view, o['id'])
-                            st.error("Order Deleted!")
-                            time.sleep(0.5); st.rerun()
-            else: st.info("No orders found in this file.")
+                        
+                        if is_khalas:
+                            st.success("✅ Order Fulfilled (Khalas)")
+                        else:
+                            c_khalas, c_del = st.columns([2, 1])
+                            with c_khalas:
+                                if st.button("✅ Khalas", key=f"khalas_{o['id']}", type="primary", use_container_width=True):
+                                    mark_order_fulfilled(t_file_view, o['id'])
+                                    st.toast("Order Marked Khalas!")
+                                    time.sleep(0.5); st.rerun()
+                            with c_del:
+                                if st.button("🗑️ Del", key=f"del_{o['id']}", type="secondary", use_container_width=True):
+                                    delete_order(t_file_view, o['id']); st.error("Deleted!"); time.sleep(0.5); st.rerun()
+            else: st.info("No orders found.")
 
         with t2:
             if orders:
@@ -546,10 +420,9 @@ elif app_mode == "🔐 Owner Login":
                 c1, c2 = st.columns(2)
                 c1.markdown(f"<div class='metric-card'><h3>💰 Total Revenue</h3><h1>OMR {rev:.3f}</h1></div>", unsafe_allow_html=True)
                 c2.markdown(f"<div class='metric-card'><h3>🧾 Total Orders</h3><h1>{len(orders)}</h1></div>", unsafe_allow_html=True)
-                st.divider()
-                st.subheader("👥 By Customer")
+                st.divider(); st.subheader("👥 By Customer")
                 df_cust = pd.DataFrame([{"Customer": o['customer'], "Time": o['time'], "Items": o['item_summary'], "Total": f"{o['total']:.3f}"} for o in orders])
-                st.dataframe(df_cust.sort_values("Customer").style.set_properties(**{'text-align': 'center'}).set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}]), width="stretch", hide_index=True)
+                st.dataframe(df_cust, width="stretch", hide_index=True)
                 st.subheader("🔥 By Dish")
                 stats = {}
                 for o in orders:
@@ -558,127 +431,47 @@ elif app_mode == "🔐 Owner Login":
                         stats[i['item']]['qty'] += i['qty']
                         stats[i['item']]['rev'] += i['price']
                 if stats:
-                    df_stats = pd.DataFrame([{"Item":k,"Qty":v['qty'],"Rev":f"{v['rev']:.3f}"} for k,v in stats.items()])
-                    df_stats = df_stats.sort_values("Qty", ascending=False)
-                    st.dataframe(df_stats.style.set_properties(**{'text-align': 'center'}).set_table_styles([{'selector': 'th', 'props': [('text-align', 'center')]}]), width="stretch", hide_index=True)
+                    df_stats = pd.DataFrame([{"Item":k,"Qty":v['qty'],"Rev":f"{v['rev']:.3f}"} for k,v in stats.items()]).sort_values("Qty", ascending=False)
+                    st.dataframe(df_stats, width="stretch", hide_index=True)
                 else: df_stats = pd.DataFrame()
                 st.divider(); st.subheader("Export")
-                df_export_cust = pd.DataFrame([{"Date":o['date'],"Time":o['time'],"Customer":o['customer'],"Items":o['item_summary'],"Total":f"OMR {o['total']:.3f}"} for o in reversed(orders)])
                 c1,c2,c3 = st.columns(3)
                 with c1: st.download_button("⬇️ JSON", json.dumps(orders, indent=4), t_file_view, "application/json")
-                with c2: 
-                    html_report = generate_combined_html(df_export_cust, df_stats, s_date.strftime('%Y-%m-%d'))
-                    st.download_button("📄 HTML (Combined)", html_report, "report.html", "text/html")
-                with c3: st.download_button("🖼️ PNG (Log Only)", generate_png_image(df_export_cust), "report.png", "image/png")
+                with c2: st.download_button("📄 HTML", generate_combined_html(df_cust, df_stats, s_date.strftime('%Y-%m-%d')), "report.html", "text/html")
+                with c3: st.download_button("🖼️ PNG", generate_png_image(df_cust), "report.png", "image/png")
 
         with t3:
             curr = load_data("menu.json", {"Nasi Lemak": 1.500})
-            
             st.write("### ✏️ Edit / Add Items")
             df_menu = pd.DataFrame(list(curr.items()), columns=["Item", "Price (OMR)"])
             ed = st.data_editor(df_menu, num_rows="dynamic", width="stretch", key="menu_editor")
-            
             if st.button("💾 Save Changes", type="primary", width="stretch"):
-                new_menu = dict(zip(ed["Item"], ed["Price (OMR)"]))
-                save_data("menu.json", new_menu)
-                st.success("Menu Updated!")
-                time.sleep(1); st.rerun()
-            
+                try:
+                    new_menu = {k: float(v) for k, v in dict(zip(ed["Item"], ed["Price (OMR)"])).items()}
+                    save_data("menu.json", new_menu); st.success("Menu Updated!"); time.sleep(1); st.rerun()
+                except Exception as e: st.error(f"Error saving: {e}")
+
             st.divider()
             
-            st.write("### ❌ Delete Items")
-            item_list = list(curr.keys())
-            to_delete = st.multiselect("Select items to remove:", item_list)
+            # --- SOLD OUT MANAGEMENT ---
+            st.write("### 🚫 Manage Sold Out Items")
+            st.caption("Select items that are finished. Customers won't be able to order them.")
+            sold_out_list = load_data("sold_out.json", [])
+            updated_sold_out = st.multiselect("Select Sold Out Items:", list(curr.keys()), default=[i for i in sold_out_list if i in curr])
             
-            if to_delete:
-                if st.button(f"🗑️ Delete {len(to_delete)} Item(s)", type="secondary", width="stretch"):
-                    for item in to_delete:
-                        if item in curr: del curr[item]
-                    save_data("menu.json", curr)
-                    st.error(f"Deleted: {', '.join(to_delete)}")
-                    time.sleep(1); st.rerun()
+            if st.button("💾 Update Availability", type="primary"):
+                save_data("sold_out.json", updated_sold_out)
+                st.success("Availability Updated!")
+                time.sleep(1); st.rerun()
+
+            st.divider(); st.write("### ❌ Delete Items")
+            to_delete = st.multiselect("Select items to remove from Menu:", list(curr.keys()))
+            if to_delete and st.button(f"🗑️ Delete {len(to_delete)} Item(s)", type="secondary", width="stretch"):
+                for item in to_delete: del curr[item]
+                save_data("menu.json", curr); st.error(f"Deleted: {', '.join(to_delete)}"); time.sleep(1); st.rerun()
         
         with t4:
-            st.markdown("""
-            # 📋 Panduan Pengguna Admin - Malaysian Street Vibes
-
-            Selamat datang ke Dashboard Towkay! Panduan ini akan membantu anda menguruskan kedai, menu, dan jualan menggunakan aplikasi ini.
-
-            ---
-
-            ### 1️⃣ Cara Log Masuk (Login)
-            1.  Buka aplikasi.
-            2.  Di bahagian kiri (Sidebar), pilih **🔐 Owner Login**.
-            3.  Masukkan kata laluan (Password) anda.
-            4.  Tekan **Enter** atau butang **Login**.
-
-            ---
-
-            ### 2️⃣ Tetapan Operasi (Settings)
-            Di sinilah anda menetapkan waktu perniagaan.
-
-            * **Active Date:** Tetapkan tarikh hari ini (Menu akan dipaparkan untuk tarikh ini).
-            * **Status Kedai:**
-                * 🟢 **OPEN SHOP:** Pelanggan boleh order.
-                * 🔴 **CLOSE SHOP:** Pelanggan tidak boleh order.
-            * **Butang 💾 Save Settings:** Wajib tekan selepas ubah apa-apa tetapan.
-
-            ---
-
-            ### 3️⃣ Menguruskan Pesanan (Tab: 🔥 Kitchen Live)
-            Ini adalah paparan utama untuk melihat pesanan yang baru masuk.
-
-            * **Senarai Pesanan:** Pesanan terkini akan muncul di atas.
-            * **Butiran:** Anda boleh lihat Nama Pelanggan, Jenis (Dine-in/Takeaway), dan senarai makanan.
-            * **Padam Pesanan:** Jika ada kesilapan atau pesanan palsu, tekan butang **❌ Delete Order** untuk membuangnya dari sistem.
-
-            > **Nota WhatsApp:** Pelanggan akan menekan butang hijau di telefon mereka untuk menghantar butiran pesanan terus ke WhatsApp hotline (+968 7914 4711).
-
-            ---
-
-            ### 4️⃣ Laporan Jualan (Tab: 💰 Sales)
-            Lihat prestasi jualan harian anda.
-
-            * **Total Revenue:** Jumlah kutipan kasar (OMR).
-            * **Total Orders:** Bilangan pesanan.
-            * **👥 By Customer:** Senarai penuh siapa yang order dan pukul berapa.
-            * **🔥 By Dish:** Ranking makanan paling laku.
-            * **Eksport Data:**
-                * Tekan **⬇️ JSON** untuk simpanan data mentah.
-                * Tekan **📄 HTML** untuk laporan cantik (boleh diprint).
-                * Tekan **🖼️ PNG** untuk gambar ringkas laporan jualan (mudah share dalam WhatsApp group).
-
-            ---
-
-            ### 5️⃣ Menguruskan Menu (Tab: 🛠️ Menu)
-            Anda boleh ubah harga, tambah makanan, atau buang makanan.
-
-            **A. Ubah Harga / Tambah Item:**
-            1.  Lihat jadual menu.
-            2.  Klik pada nama makanan atau harga untuk **edit**.
-            3.  Untuk tambah item baru, klik pada baris kosong di bawah sekali dan taip nama & harga.
-            4.  Tekan **💾 Save Changes**.
-
-            **B. Buang Makanan (Delete):**
-            1.  Lihat bahagian bawah "❌ Delete Items".
-            2.  Pilih nama makanan dalam kotak pilihan (boleh pilih banyak sekali gus).
-            3.  Tekan butang **🗑️ Delete Item(s)**.
-
-            ---
-
-            ### 6️⃣ Sistem Simpanan Awan (Mode: 🔄 Device Sync)
-            Gunakan ini jika anda menukar peranti (contoh: dari Laptop ke iPad) supaya data tidak hilang.
-
-            * **Pastikan Online:** Kotak status mesti berwarna hijau (Connected to Dropbox).
-            * **⬆️ Upload to Cloud:** Tekan ini setiap kali habis berniaga ("Tutup Kedai") untuk simpan data jualan hari ini ke dalam internet (Dropbox).
-            * **⬇️ Download from Cloud:** Tekan ini jika anda baru buka kedai menggunakan peranti baru/lain untuk ambil semula data jualan terkini.
-
-            ---
-
-            **Tip Penting:**
-            * Sentiasa tekan **Refresh Data** jika anda rasa paparan tidak dikemaskini.
-            * Pastikan "Active Date" adalah betul setiap hari sebelum memulakan operasi.
-            """)
+            st.markdown("### 📋 Panduan Pengguna Admin - Malaysian Street Vibes\n1. **Login:** Pilih 'Owner Login' dan masukkan password.\n2. **Status Kedai:** Gunakan butang 'OPEN' atau 'CLOSE' di bahagian atas untuk kawal kedai.\n3. **Khalas Button:** Di tab 'Kitchen Live', tekan butang hijau bila order dah siap.\n4. **Sold Out:** Di tab 'Menu', pilih item yang dah habis dalam kotak 'Manage Sold Out Items'.")
 
     else: st.info("Please Login.")
 
@@ -691,56 +484,21 @@ elif app_mode == "🔄 Device Sync":
         st.info("Please enter the admin password to access Device Sync.")
         with st.form("sync_login_form"):
             pwd = st.text_input("Password", type="password")
-            submit_btn = st.form_submit_button("Access Sync Center")
-        correct_pwd = st.secrets["admin"]["password"] if "admin" in st.secrets else "admin123"
-        if submit_btn and pwd == correct_pwd:
-            st.session_state['authenticated'] = True; st.rerun()
-        elif submit_btn: st.error("Wrong Password"); st.stop()
+            if st.form_submit_button("Access"):
+                if pwd == (st.secrets["admin"]["password"] if "admin" in st.secrets else "admin123"): st.session_state['authenticated'] = True; st.rerun()
+                else: st.error("Wrong Password")
             
     if st.session_state.get('authenticated', False):
-        st.markdown("## 📱 Sync Center")
-        st.markdown("Manage data flow between this device and Dropbox Cloud.")
-        try:
-            dbx.users_get_current_account()
-            st.markdown('<div class="sync-box sync-online">✅ <b>Status: Online</b><br>Connected to Dropbox</div>', unsafe_allow_html=True)
-        except:
-            st.markdown('<div class="sync-box sync-offline">❌ <b>Status: Offline</b><br>Check secrets.toml</div>', unsafe_allow_html=True); st.stop()
-
-        current_file = get_active_week_filename()
-        st.subheader(f"📄 Current Active File: `{current_file}`")
-        last_mod = get_file_metadata(current_file)
-        if last_mod: st.info(f"☁️ **Cloud Last Updated:** {last_mod}")
-        else: st.warning("⚠️ File not found in Cloud (New Week?)")
-        st.divider()
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("⬆️ Upload to Cloud")
-            st.markdown("Overwrite cloud data with a file from this device.")
+        st.markdown("## 📱 Sync Center"); st.info("Manage data flow between this device and Dropbox Cloud.")
+        c1, c2 = st.columns(2)
+        with c1:
             uploaded_file = st.file_uploader("Select JSON File", type=['json'])
-            if uploaded_file:
-                if st.button("🚀 Push (Overwrite Cloud)", type="primary", width="stretch"):
-                    try:
-                        data = json.load(uploaded_file)
-                        save_data(uploaded_file.name, data)
-                        st.success(f"Uploaded {uploaded_file.name} to Cloud!"); time.sleep(1.5); st.rerun()
-                    except Exception as e: st.error(f"Error: {e}")
-        with col2:
-            st.subheader("⬇️ Download from Cloud")
-            st.markdown("Save the latest cloud data to this device.")
-            cloud_data = load_data(current_file, None)
-            if cloud_data is not None:
-                st.success("Data Ready.")
-                st.download_button(label=f"💾 Save {current_file}", data=json.dumps(cloud_data, indent=4), file_name=current_file, mime="application/json", width="stretch")
-            else: st.error("No data available to download.")
-        st.divider()
-        with st.expander("📂 View All Cloud Files"):
-            files = list_dropbox_files()
-            if files:
-                for f in files:
-                    c1, c2 = st.columns([4, 1])
-                    c1.write(f"📄 {f}")
-                    if c2.button("🗑️", key=f"del_file_{f}"):
-                        if delete_dropbox_file(f):
-                            st.toast(f"Deleted {f}"); time.sleep(1); st.rerun()
-                        else: st.error("Failed to delete.")
-            else: st.write("Folder is empty.")
+            if uploaded_file and st.button("🚀 Push (Overwrite Cloud)", type="primary"):
+                try: save_data(uploaded_file.name, json.load(uploaded_file)); st.success("Uploaded!"); time.sleep(1.5); st.rerun()
+                except Exception as e: st.error(f"Error: {e}")
+        with c2:
+            current_file = get_active_week_filename()
+            if st.button(f"⬇️ Download {current_file}", type="secondary"):
+                data = load_data(current_file, None)
+                if data: st.download_button(f"💾 Save {current_file}", json.dumps(data, indent=4), current_file, "application/json")
+                else: st.error("No data.")
