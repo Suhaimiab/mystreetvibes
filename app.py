@@ -34,8 +34,7 @@ MENU_IMAGES = {
     "Nasi Lemak": "images/nasi_lemak.jpg",
     "Mee Goreng": "images/mee_goreng.jpg",
     "Teh Tarik": "images/teh_tarik.jpg",
-    "Nasi Ayam Masak Merah": "images/nasi_ayam.jpg" 
-    # Add more here matching your exact menu item names
+    "Nasi Ayam Masak Merah": "images/nasi_ayam.jpg"
 }
 
 # CSS Styling
@@ -76,6 +75,19 @@ st.markdown("""
     .welcome-time { color: #1565C0; font-weight: bold; margin-bottom: 5px; }
     .welcome-loc { color: #E65100; font-weight: bold; font-size: 0.9em; }
     img.menu-img { border-radius: 10px; object-fit: cover; }
+    
+    /* Sold Out Badge Styling */
+    .sold-out-badge {
+        background-color: #ffebee;
+        color: #c62828;
+        border: 1px solid #c62828;
+        padding: 5px 10px;
+        border-radius: 5px;
+        font-weight: bold;
+        text-align: center;
+        display: inline-block;
+        width: 100%;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -115,6 +127,13 @@ def delete_order(filename, order_id):
     new_data = [d for d in data if d.get('id') != order_id]
     save_data(filename, new_data)
 
+def mark_order_fulfilled(filename, order_id):
+    data = load_data(filename, [])
+    for d in data:
+        if d.get('id') == order_id:
+            d['status'] = 'Khalas'
+    save_data(filename, data)
+
 def delete_dropbox_file(filename):
     try: dbx.files_delete_v2(f"/{filename}"); return True
     except: return False
@@ -140,7 +159,7 @@ def format_to_12hr(t_input):
     except: return str(t_input)
 
 def is_shop_open():
-    if st.session_state.get('authenticated', False): return True
+    # --- STRICT MANUAL CONTROL ---
     return get_config().get("status") == "open"
 
 def get_file_metadata(filename):
@@ -217,14 +236,17 @@ if app_mode == "🍽️ Customer Menu":
             st.markdown("1. **Select Food**\n2. **Check Cart**\n3. **Review**\n4. **Submit**")
         
         menu = load_data("menu.json", {"Nasi Lemak": 1.500})
+        sold_out_items = load_data("sold_out.json", []) # Load sold out list
+        
         col1, col2 = st.columns([1.5, 1])
         with col1:
             st.info("🍛 **Menu**")
             for item_name, item_price in menu.items():
                 
-                # --- FIX: Ensure Price is a Float (Number) ---
                 try: item_price = float(item_price)
                 except: item_price = 0.0
+                
+                is_sold_out = item_name in sold_out_items # Check availability
                 
                 c_img, c_det, c_inp, c_btn = st.columns([1.2, 2, 1, 1])
                 
@@ -238,12 +260,18 @@ if app_mode == "🍽️ Customer Menu":
                     st.caption(f"OMR {item_price:.3f}")
                 
                 with c_inp:
-                    qty = st.number_input("Qty", min_value=1, value=1, key=f"qty_{item_name}", label_visibility="collapsed")
+                    if not is_sold_out:
+                        qty = st.number_input("Qty", min_value=1, value=1, key=f"qty_{item_name}", label_visibility="collapsed")
+                    else:
+                        st.write("") # Spacer
                 
                 with c_btn:
-                    if st.button("Add", key=f"btn_{item_name}", disabled=not shop_open):
-                        st.session_state.cart.append({"item": item_name, "qty": qty, "price": item_price * qty})
-                        st.toast(f"✅ Added {qty}x {item_name}")
+                    if is_sold_out:
+                        st.markdown('<div class="sold-out-badge">SOLD OUT</div>', unsafe_allow_html=True)
+                    else:
+                        if st.button("Add", key=f"btn_{item_name}", disabled=not shop_open):
+                            st.session_state.cart.append({"item": item_name, "qty": qty, "price": item_price * qty})
+                            st.toast(f"✅ Added {qty}x {item_name}")
                 st.write("---")
                 
         with col2:
@@ -364,10 +392,26 @@ elif app_mode == "🔐 Owner Login":
             st.subheader("Incoming Orders")
             if orders:
                 for o in reversed(orders):
-                    with st.expander(f"🕒 {o['time']} - {o['customer']} (OMR {o['total']:.3f})", expanded=True):
+                    # KHALAS LOGIC
+                    is_khalas = o.get('status') == 'Khalas'
+                    status_icon = "✅" if is_khalas else "🔥"
+                    status_label = "(Fulfilled)" if is_khalas else ""
+                    
+                    with st.expander(f"{status_icon} {o['time']} - {o['customer']} {status_label}", expanded=not is_khalas):
                         st.write(f"**Items:** {o.get('item_summary', '')}")
-                        if st.button("❌ Delete Order", key=f"del_{o['id']}"):
-                            delete_order(t_file_view, o['id']); st.error("Order Deleted!"); time.sleep(0.5); st.rerun()
+                        
+                        if is_khalas:
+                            st.success("✅ Order Fulfilled (Khalas)")
+                        else:
+                            c_khalas, c_del = st.columns([2, 1])
+                            with c_khalas:
+                                if st.button("✅ Khalas", key=f"khalas_{o['id']}", type="primary", use_container_width=True):
+                                    mark_order_fulfilled(t_file_view, o['id'])
+                                    st.toast("Order Marked Khalas!")
+                                    time.sleep(0.5); st.rerun()
+                            with c_del:
+                                if st.button("🗑️ Del", key=f"del_{o['id']}", type="secondary", use_container_width=True):
+                                    delete_order(t_file_view, o['id']); st.error("Deleted!"); time.sleep(0.5); st.rerun()
             else: st.info("No orders found.")
 
         with t2:
@@ -402,24 +446,32 @@ elif app_mode == "🔐 Owner Login":
             df_menu = pd.DataFrame(list(curr.items()), columns=["Item", "Price (OMR)"])
             ed = st.data_editor(df_menu, num_rows="dynamic", width="stretch", key="menu_editor")
             if st.button("💾 Save Changes", type="primary", width="stretch"):
-                # Clean and save the menu
                 try:
-                    new_menu = {}
-                    for k, v in dict(zip(ed["Item"], ed["Price (OMR)"])).items():
-                        new_menu[k] = float(v) # FORCE FLOAT SAVE
-                    save_data("menu.json", new_menu)
-                    st.success("Menu Updated!")
-                    time.sleep(1); st.rerun()
+                    new_menu = {k: float(v) for k, v in dict(zip(ed["Item"], ed["Price (OMR)"])).items()}
+                    save_data("menu.json", new_menu); st.success("Menu Updated!"); time.sleep(1); st.rerun()
                 except Exception as e: st.error(f"Error saving: {e}")
 
+            st.divider()
+            
+            # --- SOLD OUT MANAGEMENT ---
+            st.write("### 🚫 Manage Sold Out Items")
+            st.caption("Select items that are finished. Customers won't be able to order them.")
+            sold_out_list = load_data("sold_out.json", [])
+            updated_sold_out = st.multiselect("Select Sold Out Items:", list(curr.keys()), default=[i for i in sold_out_list if i in curr])
+            
+            if st.button("💾 Update Availability", type="primary"):
+                save_data("sold_out.json", updated_sold_out)
+                st.success("Availability Updated!")
+                time.sleep(1); st.rerun()
+
             st.divider(); st.write("### ❌ Delete Items")
-            to_delete = st.multiselect("Select items to remove:", list(curr.keys()))
+            to_delete = st.multiselect("Select items to remove from Menu:", list(curr.keys()))
             if to_delete and st.button(f"🗑️ Delete {len(to_delete)} Item(s)", type="secondary", width="stretch"):
                 for item in to_delete: del curr[item]
                 save_data("menu.json", curr); st.error(f"Deleted: {', '.join(to_delete)}"); time.sleep(1); st.rerun()
         
         with t4:
-            st.markdown("### 📋 Panduan Pengguna Admin - Malaysian Street Vibes\n1. **Login:** Pilih 'Owner Login' dan masukkan password.\n2. **Status Kedai:** Gunakan butang 'OPEN' atau 'CLOSE' di bahagian atas untuk kawal kedai.\n3. **Tarikh/Masa:** Set tarikh dan masa paparan untuk makluman pelanggan.\n4. **Menu:** Edit harga atau tambah item baru di tab 'Menu'.\n5. **Sync:** Upload data ke cloud sebelum tutup kedai.")
+            st.markdown("### 📋 Panduan Pengguna Admin - Malaysian Street Vibes\n1. **Login:** Pilih 'Owner Login' dan masukkan password.\n2. **Status Kedai:** Gunakan butang 'OPEN' atau 'CLOSE' di bahagian atas untuk kawal kedai.\n3. **Khalas Button:** Di tab 'Kitchen Live', tekan butang hijau bila order dah siap.\n4. **Sold Out:** Di tab 'Menu', pilih item yang dah habis dalam kotak 'Manage Sold Out Items'.")
 
     else: st.info("Please Login.")
 
