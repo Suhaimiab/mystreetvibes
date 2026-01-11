@@ -57,16 +57,27 @@ st.markdown("""
         height: 3em;
         transition: all 0.2s ease-in-out;
     }
+    
+    /* PRIMARY BUTTON (Dark Brown) - Used for Add, Confirm, Login, Save */
     .stButton>button[kind="primary"] {
         background-color: #5D4037 !important;
         color: white !important;
         border: none !important;
     }
-    .stButton>button[kind="secondary"] {
-        background-color: #EFEBE9 !important;
-        color: #5D4037 !important;
-        border: 1px solid #D7CCC8 !important;
+    .stButton>button[kind="primary"]:active {
+        background-color: #3E2723 !important;
     }
+
+    /* SECONDARY BUTTON (Light Brown) - Used for Khalas, Delete */
+    .stButton>button[kind="secondary"] {
+        background-color: #8D6E63 !important; /* LIGHT BROWN */
+        color: white !important;
+        border: none !important;
+    }
+    .stButton>button[kind="secondary"]:active {
+        background-color: #6D4C41 !important;
+    }
+
     .shop-info { background-color: #E8F5E9; color: #1B5E20; padding: 15px; border-radius: 10px; border: 2px solid #4CAF50; text-align: center; font-weight: bold; margin-bottom: 15px; }
     .shop-closed { background-color: #FFEBEE; color: #B71C1C; padding: 15px; border-radius: 10px; border: 2px solid #F44336; text-align: center; font-weight: bold; margin-bottom: 15px; }
     .welcome-container { text-align: center; margin-bottom: 15px; padding: 10px; background-color: #FAFAFA; border-radius: 10px; border-bottom: 2px solid #5D4037; }
@@ -76,7 +87,6 @@ st.markdown("""
     .welcome-loc { color: #E65100; font-weight: bold; font-size: 0.9em; }
     img.menu-img { border-radius: 10px; object-fit: cover; }
     
-    /* Sold Out Badge Styling */
     .sold-out-badge {
         background-color: #ffebee;
         color: #c62828;
@@ -159,7 +169,6 @@ def format_to_12hr(t_input):
     except: return str(t_input)
 
 def is_shop_open():
-    # --- STRICT MANUAL CONTROL ---
     return get_config().get("status") == "open"
 
 def get_file_metadata(filename):
@@ -236,38 +245,29 @@ if app_mode == "🍽️ Customer Menu":
             st.markdown("1. **Select Food**\n2. **Check Cart**\n3. **Review**\n4. **Submit**")
         
         menu = load_data("menu.json", {"Nasi Lemak": 1.500})
-        sold_out_items = load_data("sold_out.json", []) # Load sold out list
+        sold_out_items = load_data("sold_out.json", [])
         
         col1, col2 = st.columns([1.5, 1])
         with col1:
             st.info("🍛 **Menu**")
             for item_name, item_price in menu.items():
-                
                 try: item_price = float(item_price)
                 except: item_price = 0.0
-                
-                is_sold_out = item_name in sold_out_items # Check availability
+                is_sold_out = item_name in sold_out_items
                 
                 c_img, c_det, c_inp, c_btn = st.columns([1.2, 2, 1, 1])
-                
                 with c_img:
                     img_path = MENU_IMAGES.get(item_name)
                     if img_path and os.path.exists(img_path): st.image(img_path, use_container_width=True)
                     else: st.write("🍲")
-                
                 with c_det:
                     st.write(f"**{item_name}**")
                     st.caption(f"OMR {item_price:.3f}")
-                
                 with c_inp:
-                    if not is_sold_out:
-                        qty = st.number_input("Qty", min_value=1, value=1, key=f"qty_{item_name}", label_visibility="collapsed")
-                    else:
-                        st.write("") # Spacer
-                
+                    if not is_sold_out: qty = st.number_input("Qty", min_value=1, value=1, key=f"qty_{item_name}", label_visibility="collapsed")
+                    else: st.write("")
                 with c_btn:
-                    if is_sold_out:
-                        st.markdown('<div class="sold-out-badge">SOLD OUT</div>', unsafe_allow_html=True)
+                    if is_sold_out: st.markdown('<div class="sold-out-badge">SOLD OUT</div>', unsafe_allow_html=True)
                     else:
                         if st.button("Add", key=f"btn_{item_name}", disabled=not shop_open):
                             st.session_state.cart.append({"item": item_name, "qty": qty, "price": item_price * qty})
@@ -392,23 +392,19 @@ elif app_mode == "🔐 Owner Login":
             st.subheader("Incoming Orders")
             if orders:
                 for o in reversed(orders):
-                    # KHALAS LOGIC
                     is_khalas = o.get('status') == 'Khalas'
                     status_icon = "✅" if is_khalas else "🔥"
                     status_label = "(Fulfilled)" if is_khalas else ""
                     
                     with st.expander(f"{status_icon} {o['time']} - {o['customer']} {status_label}", expanded=not is_khalas):
                         st.write(f"**Items:** {o.get('item_summary', '')}")
-                        
-                        if is_khalas:
-                            st.success("✅ Order Fulfilled (Khalas)")
+                        if is_khalas: st.success("✅ Order Fulfilled (Khalas)")
                         else:
                             c_khalas, c_del = st.columns([2, 1])
                             with c_khalas:
-                                if st.button("✅ Khalas", key=f"khalas_{o['id']}", type="primary", use_container_width=True):
-                                    mark_order_fulfilled(t_file_view, o['id'])
-                                    st.toast("Order Marked Khalas!")
-                                    time.sleep(0.5); st.rerun()
+                                # CHANGED TO SECONDARY FOR LIGHT BROWN COLOR
+                                if st.button("✅ Khalas", key=f"khalas_{o['id']}", type="secondary", use_container_width=True):
+                                    mark_order_fulfilled(t_file_view, o['id']); st.toast("Order Marked Khalas!"); time.sleep(0.5); st.rerun()
                             with c_del:
                                 if st.button("🗑️ Del", key=f"del_{o['id']}", type="secondary", use_container_width=True):
                                     delete_order(t_file_view, o['id']); st.error("Deleted!"); time.sleep(0.5); st.rerun()
@@ -452,17 +448,11 @@ elif app_mode == "🔐 Owner Login":
                 except Exception as e: st.error(f"Error saving: {e}")
 
             st.divider()
-            
-            # --- SOLD OUT MANAGEMENT ---
             st.write("### 🚫 Manage Sold Out Items")
-            st.caption("Select items that are finished. Customers won't be able to order them.")
             sold_out_list = load_data("sold_out.json", [])
             updated_sold_out = st.multiselect("Select Sold Out Items:", list(curr.keys()), default=[i for i in sold_out_list if i in curr])
-            
             if st.button("💾 Update Availability", type="primary"):
-                save_data("sold_out.json", updated_sold_out)
-                st.success("Availability Updated!")
-                time.sleep(1); st.rerun()
+                save_data("sold_out.json", updated_sold_out); st.success("Availability Updated!"); time.sleep(1); st.rerun()
 
             st.divider(); st.write("### ❌ Delete Items")
             to_delete = st.multiselect("Select items to remove from Menu:", list(curr.keys()))
@@ -471,7 +461,7 @@ elif app_mode == "🔐 Owner Login":
                 save_data("menu.json", curr); st.error(f"Deleted: {', '.join(to_delete)}"); time.sleep(1); st.rerun()
         
         with t4:
-            st.markdown("### 📋 Panduan Pengguna Admin - Malaysian Street Vibes\n1. **Login:** Pilih 'Owner Login' dan masukkan password.\n2. **Status Kedai:** Gunakan butang 'OPEN' atau 'CLOSE' di bahagian atas untuk kawal kedai.\n3. **Khalas Button:** Di tab 'Kitchen Live', tekan butang hijau bila order dah siap.\n4. **Sold Out:** Di tab 'Menu', pilih item yang dah habis dalam kotak 'Manage Sold Out Items'.")
+            st.markdown("### 📋 Panduan Pengguna Admin - Malaysian Street Vibes\n1. **Login:** Pilih 'Owner Login' dan masukkan password.\n2. **Status Kedai:** Gunakan butang 'OPEN' atau 'CLOSE' di bahagian atas untuk kawal kedai.\n3. **Khalas Button:** Di tab 'Kitchen Live', tekan butang hijau (Light Brown) bila order dah siap.\n4. **Sold Out:** Di tab 'Menu', pilih item yang dah habis dalam kotak 'Manage Sold Out Items'.")
 
     else: st.info("Please Login.")
 
